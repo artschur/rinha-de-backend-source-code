@@ -394,8 +394,8 @@ Para ter seu backend testado oficialmente pela Rinha de Backend, ver os resultad
     ```json
     {
         "name": "Débora Nis Zanfranceschi",
-        "social": ["https://x.com/deboranis", "https://bsky.app/profile/deboranis.bsky.social"],
-        "source-code-repo": "https://github.com/deboranis/rinha-de-backend-2025",
+        "social": ["https://x.com/debora-zan", "https://bsky.app/profile/debora-zan.bsky.social"],
+        "source-code-repo": "https://github.com/debora-zan/rinha-de-backend-2025",
         "langs": ["node"],
         "storages": ["postgresql", "redis"],
         "messaging": ["rabbitmq", "nats"],
