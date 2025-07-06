@@ -40,3 +40,7 @@ Se quiser alterar o número máximo de requisições simultâneas, você poderá
 ```shell
 k6 run -e MAX_REQUESTS=850 rinha.js
 ```
+
+### Contribuição com o Script de Teste
+
+O script de testes foi feito por mim (Zan), mas como não tenho proficiência em Javascript, muito provavelmente existem muitos pontos de melhoria. Sugestões de melhoria no script de testes são muito bem-vindas! Abra um PR e contribua!

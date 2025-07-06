@@ -1,4 +1,3 @@
-import { textSummary } from "https://jslib.k6.io/k6-summary/0.1.0/index.js";
 import { uuidv4 } from "https://jslib.k6.io/k6-utils/1.4.0/index.js";
 import { sleep } from "k6";
 import exec from "k6/execution";
@@ -94,22 +93,9 @@ export const options = {
       vus: 1,
       duration: "1s",
       tags: {
-        defaultDelay: "1000",
-        defaultFailure: "false",
-        fallbackDelay: "20",
-        fallbackFailure: "false",
-      },
-    },
-    stage_03_chaos: {
-      exec: "define_stage",
-      startTime: "35s",
-      executor: "constant-vus",
-      vus: 1,
-      duration: "1s",
-      tags: {
-        defaultDelay: "5000",
+        defaultDelay: "2000",
         defaultFailure: "true",
-        fallbackDelay: "5000",
+        fallbackDelay: "1000",
         fallbackFailure: "true",
       },
     },
@@ -139,22 +125,8 @@ export const options = {
         fallbackFailure: "false",
       },
     },
-    stage_06: {
-      exec: "define_stage",
-      startTime: "50s",
-      executor: "constant-vus",
-      vus: 1,
-      duration: "1s",
-      tags: {
-        defaultDelay: "300",
-        defaultFailure: "false",
-        fallbackDelay: "5000",
-        fallbackFailure: "false",
-      },
-    },
   },
 };
-
 
 const transactionsSuccessCounter = new Counter("transactions_success");
 const transactionsFailureCounter = new Counter("transactions_failure");
@@ -268,37 +240,4 @@ export async function define_stage() {
   await setPPFailure("fallback", fallbackFailure);
 
   sleep(1);
-}
-
-export function handleSummary_(data) {
-
-  const expected_amount = data.metrics.transactions_success.values.count * 19.90;
-  const actual_amount = data.metrics.total_transactions_amount.values.count;
-  const lag_amount = expected_amount - actual_amount;
-
-  const custom_data = {
-    p_99: data.metrics["http_req_duration{expected_response:true}"].values["p(99)"],
-    lag_amount: lag_amount,
-    balance_inconsistency_amount: data.metrics.balance_inconsistency_amount.values.count,
-    total_transactions_amount: data.metrics.total_transactions_amount.values.count,
-    transactions_success: data.metrics.transactions_success.values.count,
-    transactions_failure: data.metrics.transactions_failure.values.count,
-    default_total_amount: data.metrics.default_total_amount.values.count,
-    default_total_requests: data.metrics.default_total_requests.values.count,
-    fallback_total_amount: data.metrics.fallback_total_amount.values.count,
-    fallback_total_requests: data.metrics.fallback_total_requests.values.count,
-    default_total_fee: data.metrics.default_total_fee.values.count,
-    fallback_total_fee: data.metrics.fallback_total_fee.values.count
-    //p99_sucesso: data.http_req_duration{expected_response:true}.values["p(99)"]
-  };
-
-  const summaryJsonFileName = `./results/${new Date().getTime()}-summary.json`;
-  
-  const result = {
-    stdout: textSummary(data),
-  };
-
-  result[summaryJsonFileName] = JSON.stringify(custom_data);
-
-  return result;
 }
