@@ -2,7 +2,7 @@
 
 [@rinhadebackend](https://x.com/rinhadebackend)  no X // [@rinhadebackend.bsky.social](https://bsky.app/profile/rinhadebackend.bsky.social) no Bluesky // ou [zan](https://www.linkedin.com/in/francisco-zanfranceschi/) no LinkedIn (criador da rinha)
 
-![galinha correndo](./misc/header.jpg)
+![galinha correndo](./misc/header.jpeg)
 
 A Rinha de Backend é um desafio em que é necessário desenvolver uma solução backend em qualquer tecnologia e que tem como principal objetivo o aprendizado público e compartilhamento de conhecimento! Esta é a terceira edição do desafio. A data limite para enviar sua submissão ainda não está definida.
 
