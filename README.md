@@ -385,6 +385,11 @@ services:
 # etc...
 ```
 
+#### Restrições da API HTTP
+Seu backend precisa ter, no mínimo, duas instâncias de containers que servem os endpoints HTTP – servidores web. Diferentemente das edições anteriores da Rinha, você pode ter mais de duas instâncias de servidores web, mas não menos do que duas.
+
+![alt text](./misc/imgs/duas-instancias.png)
+
 ### Como Enviar Seu Backend
 
 Para ter seu backend testado oficialmente pela Rinha de Backend, ver os resultados em comparação com outras submissões e ter seu nome listado como participantes, você precisará fazer o seguinte:
