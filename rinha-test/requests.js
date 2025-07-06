@@ -52,21 +52,6 @@ export async function setPPToken(service, token) {
     }
 }
 
-export async function setPPFee(service, fee) {
-
-    const httpClient = paymentProcessorHttp[service];
-
-    const payload = JSON.stringify({
-        fee: fee
-    });
-
-    const response = await httpClient.asyncPut('/admin/configurations/fee', payload);
-
-    if (response.status != 200) {
-        exec.test.abort(`Erro ao definir fee para ${service} (HTTP ${response.status}).`);
-    }
-}
-
 export async function setPPDelay(service, ms) {
 
     const httpClient = paymentProcessorHttp[service];

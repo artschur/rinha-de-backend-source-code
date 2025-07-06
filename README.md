@@ -2,7 +2,7 @@
 
 A Rinha de Backend é um desafio em que é necessário desenvolver uma solução backend em qualquer tecnologia e tem como principal objetivo o aprendizado e compartilhamento de conhecimento! Esta é a terceira edição do desafio. A data limite para enviar sua submissão ainda não foi definida.
 
-![galinha correndo](./misc/header.jpeg)
+![galinha correndo](./misc/imgs/header.jpeg)
 
 Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositórios da [primeira](https://github.com/zanfranceschi/rinha-de-backend-2023-q3) e [segunda](https://github.com/zanfranceschi/rinha-de-backend-2024-q1) edições, [assista a alguns vídeos](https://www.youtube.com/results?search_query=rinha+de+backend), ou [procure na internet](https://www.google.com/search?q=rinha+de+backend) sobre ela – você vai encontrar bastante coisa!
 
@@ -14,7 +14,9 @@ Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositó
 ## O Desafio
 Nessa terceira edição da Rinha de Backend, o desafio é intermediar (integrar) requisições de pagamentos para serviços de processamento de pagamentos (chamado aqui de **Payment Processor**) com a menor taxa. Haverá dois serviços Payment Processor: o **default** – com a taxa mais baixa – e o **fallback** que contém a taxa mais alta e deveria ser usado apenas quando o serviço default não estiver disponível.
 
-![alt text](misc/arq-alto-nivel.png)
+*O código fonte do **Payment Processor** está disponível [aqui](https://github.com/zanfranceschi/rinha-de-backend-2025-payment-processor).*
+
+![alt text](./misc/imgs/arq-alto-nivel.png)
 
 Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (supresas) no endpoint responsável por receber as requisições de processamento de pagamentos. Há dois tipos de instabilidade:
 1. Tempos de resposta aumentados: o endpoint de pagamentos demora a responder – desde muito a apenas um pouco lento.
@@ -22,7 +24,7 @@ Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (sup
 
 Caberá a você desenvolver a melhor estratégia para processar pagamentos que seja a mais rápido possível e com a menor taxa – esse é o objetivo principal dessa edição da Rinha. Por favor, note que é possível enviar as requisições de pagamento de forma assíncrona. Porém, quanto mais rápido você enviar os pagamentos para um Payment Processor, maior chance terá de ir bem na pontuação porque ao final do teste haverá uma contagem de quantos pagamentos foram processados. Você obterá menos pontos se houver muitos pagamentos ainda não enviados aos serviços Payment Processor ao final do teste. Obviamente, você também pode fazer a integração de forma síncrona. Como dito anteriormente, caberá a você desenvolver uma estratégia.
 
-![alt text](misc/exemplo-proc-assinc.png)
+![alt text](./misc/imgs/exemplo-proc-assinc.png)
 
 Para facilitar a verificação da disponibildade dos serviços, para cada serviço, é fornecido um endpoint de **health-check** que mostra se o serviço está enfrentando falhas e qual é o tempo mínimo de resposta para o processamento de pagamentos. Entretanto, este endpoint possui um limite de uma chamada para cada cinco segundos. Caso este limite seja ultrapassado, uma resposta `HTTP 429 - Too Many Requests` será retornada. Use-o com sabedoria!
 
@@ -275,11 +277,15 @@ As tabelas abaixo oferem um resumo para facilitar a visão geral da solução.
 
 ## Arquitetura
 
-A Rinha – em partes – simula sistemas reais em uma escala micro (com diferenças muito importantes como pouca resilência, falta de escalabilidade, foco em performance extrema com pouco consumo de recursos, etc) e a forma mais fácil e barata para tal é o uso de containers integrados com docker compose. Para essa edição, a solução completa (o backend que você desenvolverá e os Payment Processors) irá usar dois docker compose simulando redes diferentes. Você precisará criar o seu arquivo `docker-compose.yml` que irá se conectar a rede do [docker-compose.yml](/docker-compose.yml) dos Payment Processors.
+O diagrama seguinte mostra o desenho em alto nível da solução da Rinha como um todo. O teste irá acessar seu backend através da porta **9999** (você precisa expor seus endpoints nessa porta). E você irá se integrar com os dois Payment Processors através dos endereços `http://payment-processor-default:8080` e `http://payment-processor-default:8080`.
 
-![alt text](misc/docker-compose-redes.png)
+![arquitetura geral](./misc/imgs/arquitetura-geral.png)
 
-Trecho de definição de redes e serviços do `docker-compose.yml` dos Payment Processors.
+A Rinha – em partes – simula sistemas reais em uma escala micro (com diferenças muito importantes como pouca resilência, falta de escalabilidade, foco em performance extrema com pouco consumo de recursos, etc) e a forma mais fácil e barata para tal é o uso de containers integrados com docker compose. Para essa edição, a solução completa (o backend que você desenvolverá e os Payment Processors) irá usar dois docker compose simulando redes diferentes. Você precisará criar o seu arquivo `docker-compose.yml` que irá se conectar a rede do [docker-compose.yml](./payment-processor/docker-compose.yml) dos Payment Processors.
+
+![alt text](./misc/imgs/docker-compose-redes.png)
+
+Trecho de definição de redes e serviços do [docker-compose.yml](./payment-processor/docker-compose.yml) dos Payment Processors.
 ```yaml
 # etc...
 
@@ -319,8 +325,8 @@ services:
       - backend
       - payment-processor
     environment:
-      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8001
-      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8002
+      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
+      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
     # etc...
 
 networks:
@@ -330,16 +336,16 @@ networks:
     external: true
 ```
 
-Dessa forma, os containers que declaram as duas redes poderão acessar os Payment Processors. O uso de variáveis de ambiente é um exemplo de como você poderá referenciar as URLs dos Payment Processors. Note que as entradas DNS do docker são `payment-processor-default` e `payment-processor-fallback` e as portas são `8001` e `8002` respectivamente.
+Dessa forma, os containers que declaram as duas redes poderão acessar os Payment Processors. O uso de variáveis de ambiente é um exemplo de como você poderá referenciar as URLs dos Payment Processors. Note que as entradas DNS do docker são `payment-processor-default` e `payment-processor-fallback` na porta `8080`.
 
 Para integrar, desenvolver e explorar os Payment Processors basta subir o docker compose dos Payment Processors. Você será capaz de acessá-los os dois serviços através do seu host pelos endereços http://localhost:8001 e http://localhost:8002. A URL raiz mostra algumas informações e oferece um link para explorar as APIs como mostra a imagem seguinnte.
 
-![imagem de dois browsers com a página inicial e um explorador de APIs Redoc.](misc/imagens-payment-processor-browser.png)
+![imagem de dois browsers com a página inicial e um explorador de APIs Redoc.](./misc/imgs/imagens-payment-processor-browser.png)
 
-*****Resumindo****: seus containers deverão se integrar via http://payment-processor-default:8001 e http://payment-processor-fallback:8002 com os Payment Processors (não esqueça de definir a rede externa payment-processor no seu docker-compose.yml) e você também poderá acessá-los pela máquina host através de localhost nas portas 8001 e 8002 (defaul e fallback respectivamente).*
+*****Resumindo****: seus containers deverão se integrar via http://payment-processor-default:8080 e http://payment-processor-fallback:8080 com os Payment Processors (não esqueça de definir a rede externa payment-processor no seu docker-compose.yml) e você também poderá acessá-los pela máquina host através de localhost nas portas 8001 e 8002 (defaul e fallback respectivamente).*
 
 **Nota Importante!**
-Após você ter criado seu `docker-compose.yml` com seus serviços, é importante que suba o `docker-compose.yml` dos Payment Processors antes para que rede `payment-processor` seja criada. Caso contrário, você poderá receber uma mensagem de erro relacionado a redes ao subir seus containers.
+Após você ter criado seu `docker-compose.yml` com seus serviços, é importante que suba o [docker-compose.yml](./payment-processor/docker-compose.yml) dos Payment Processors antes para que rede `payment-processor` seja criada. Caso contrário, você poderá receber uma mensagem de erro relacionado a redes ao subir seus containers.
 
 ```
 network payment-processor declared as external, but could not be found
