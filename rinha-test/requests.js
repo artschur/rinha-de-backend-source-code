@@ -23,12 +23,12 @@ const paymentProcessorFallbacktHttp = new Httpx({
 });
 
 const backendHttp = new Httpx({
-  baseURL: "http://localhost:9999",
-  //baseURL: "http://localhost:5123",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  timeout: 1500,
+    baseURL: "http://localhost:9999",
+    //baseURL: "http://localhost:5123",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    timeout: 1500,
 });
 
 const paymentProcessorHttp = {
@@ -105,16 +105,20 @@ export async function getPPPaymentsSummary(service, from, to) {
 }
 
 export async function resetBackendDatabase() {
-    
-    const response = await backendHttp.asyncPost('/purge-payments');
 
-    if (response.status != 200) {
-        exec.test.abort(`Erro ao resetar database do backend (HTTP ${response.status}).`);
+    try {
+        const response = await backendHttp.asyncPost('/purge-payments');
+
+        if (response.status != 200) {
+            exec.test.abort(`Erro ao resetar database do backend (HTTP ${response.status}).`);
+        }
+    } catch (error) {
+          console.warn("Seu backend provavelmente não possui um endpoint para resetar o banco. Isso não é um problem.", error.message);
     }
 }
 
 export async function getBackendPaymentsSummary(from, to) {
-    
+
     const response = await backendHttp.asyncGet(`/payments-summary?from=${from}&to=${to}`);
 
     if (response.status != 200) {
@@ -125,7 +129,7 @@ export async function getBackendPaymentsSummary(from, to) {
 }
 
 export async function requestBackendPayment(payload) {
-    
+
     const response = await backendHttp.asyncPost('/payments', JSON.stringify(payload));
     return response;
 }

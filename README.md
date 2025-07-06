@@ -396,7 +396,7 @@ Para ter seu backend testado oficialmente pela Rinha de Backend, ver os resultad
 - Abrir um PR neste repositório adicionando um diretório com sua identificação em [participantes](participantes/). Neste PR você deverá:
     - Incluir um `README.md` explicando as tecnologias que usadas e um link para o repositório com o código fonte da sua submissão. **NÃO INCLUA O CÓDIGO FONTE NESSE PR!**
     - Incluir o arquivo `docker-compose.yml` na raiz desse repositório com suas dependências (scripts de banco, configurações, etc.).
-    - Incluir um manifesto.json com a seguinte estrutura para facilitar a coleta das tecnologias usadas:
+    - Incluir um arquivo `info.json` com a seguinte estrutura para facilitar a coleta das tecnologias usadas:
     ```json
     {
         "name": "Débora Nis Zanfranceschi",
@@ -414,6 +414,7 @@ Para ter seu backend testado oficialmente pela Rinha de Backend, ver os resultad
     ├─ participantes/
     |  ├─ debs-node-01/
     |  |  ├─ docker-compose.yml
+    |  |  ├─ info.json
     |  |  ├─ nginx.config
     |  |  ├─ sql/
     |  |  |  ├─ ddl.sql
@@ -434,10 +435,11 @@ No diretório [rinha-test](./rinha-test) você encontra os artefatos necessário
 
 ## Pontos em Aberto
 
-Os seguintes pontos ainda não foram endereçados:
+O seguinte são questões ainda não foram endereçados ou pontos em aberto:
 
 - Definição da pontuação
 - Automação da execução dos testes
 - Script final do teste
+- Formato final do arquivo `info.json` nas submissões
 
 Por favor, contribua com esse evento revisando textos, reportando problemas, bugs e inconsistências, dando sugestões e divulgando. Faça parte dessa comunidade!
