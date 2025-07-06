@@ -277,7 +277,7 @@ As tabelas abaixo oferem um resumo para facilitar a visão geral da solução.
 
 ## Arquitetura
 
-O diagrama seguinte mostra o desenho em alto nível da solução da Rinha como um todo. O teste irá acessar seu backend através da porta **9999** (você precisa expor seus endpoints nessa porta). E você irá se integrar com os dois Payment Processors através dos endereços `http://payment-processor-default:8080` e `http://payment-processor-default:8080`.
+O diagrama seguinte mostra o desenho em alto nível da solução da Rinha como um todo. O teste irá acessar seu backend através da porta **9999** (você precisa expor seus endpoints nessa porta). E você irá se integrar com os dois Payment Processors através dos endereços `http://payment-processor-default:8080` e `http://payment-processor-fallback:8080`.
 
 ![arquitetura geral](./misc/imgs/arquitetura-geral.png)
 
@@ -438,7 +438,7 @@ No diretório [rinha-test](./rinha-test) você encontra os artefatos necessário
 O seguinte são questões ainda não foram endereçados ou pontos em aberto:
 
 - Data limite para submissões e resultados
-- Repositóro para armazenas os resultados (ou manter no mesmo?)
+- Repositório para armazenar os resultados (ou manter no mesmo?)
 - Definição da pontuação
 - Automação da execução dos testes
 - Script final do teste
