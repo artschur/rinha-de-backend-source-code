@@ -2,7 +2,7 @@
 
 A Rinha de Backend é um desafio em que é necessário desenvolver uma solução backend em qualquer tecnologia e tem como principal objetivo o aprendizado e compartilhamento de conhecimento! Esta é a terceira edição do desafio. A data limite para enviar sua submissão ainda não foi definida.
 
-![galinha correndo](./misc/imgs/header.jpeg)
+![galinha correndo](./misc/imgs/header.jpg)
 
 Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositórios da [primeira](https://github.com/zanfranceschi/rinha-de-backend-2023-q3) e [segunda](https://github.com/zanfranceschi/rinha-de-backend-2024-q1) edições, [assista a alguns vídeos](https://www.youtube.com/results?search_query=rinha+de+backend), ou [procure na internet](https://www.google.com/search?q=rinha+de+backend) sobre ela – você vai encontrar bastante coisa!
 
