@@ -437,6 +437,8 @@ No diretório [rinha-test](./rinha-test) você encontra os artefatos necessário
 
 O seguinte são questões ainda não foram endereçados ou pontos em aberto:
 
+- Data limite para submissões e resultados
+- Repositóro para armazenas os resultados (ou manter no mesmo?)
 - Definição da pontuação
 - Automação da execução dos testes
 - Script final do teste
