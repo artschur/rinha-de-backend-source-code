@@ -7,19 +7,18 @@ A Rinha de Backend é um desafio em que é necessário desenvolver uma solução
 Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositórios da [primeira](https://github.com/zanfranceschi/rinha-de-backend-2023-q3) e [segunda](https://github.com/zanfranceschi/rinha-de-backend-2024-q1) edições, [assista a alguns vídeos](https://www.youtube.com/results?search_query=rinha+de+backend), ou [procure na internet](https://www.google.com/search?q=rinha+de+backend) sobre ela – você vai encontrar bastante coisa!
 
 **Rinha nas redes sociais**
-
 [@rinhadebackend](https://x.com/rinhadebackend)  no X
 [@rinhadebackend.bsky.social](https://bsky.app/profile/rinhadebackend.bsky.social) no Bluesky
 [zan](https://www.linkedin.com/in/francisco-zanfranceschi/) no LinkedIn (criador da rinha)
 
 ## O Desafio
-Nessa terceira edição da Rinha de Backend, o desafio é intermediar (integrar) requisições de pagamentos para serviços de processamento de pagamentos (chamado aqui de **Payment Processor**) com a menor taxa. Haverá dois serviços Payment Processor: o **default** – com a taxa mais baixa – e o **fallback** que contém a taxa mais alta e deveria ser usado apenas quando o serviço default não estiver disponível.
+Nessa terceira edição da Rinha de Backend, o desafio é intermediar (integrar) requisições de pagamentos para serviços de processamento de pagamentos (chamado aqui de **Payment Processor**) com a menor taxa financeira por transação. Haverá dois serviços Payment Processor: o **default** – com a taxa mais baixa – e o **fallback** que contém a taxa mais alta e deveria ser usado apenas quando o serviço default não estiver disponível.
 
 *O código fonte do **Payment Processor** está disponível [aqui](https://github.com/zanfranceschi/rinha-de-backend-2025-payment-processor).*
 
 ![alt text](./misc/imgs/arq-alto-nivel.png)
 
-Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (supresas) no endpoint responsável por receber as requisições de processamento de pagamentos. Há dois tipos de instabilidade:
+Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (supresas) nos endpoints responsáveis por receber as requisições de processamento de pagamentos. Há dois tipos de instabilidade:
 1. Tempos de resposta aumentados: o endpoint de pagamentos demora a responder – desde muito a apenas um pouco lento.
 1. Serviço indisponível: o endpoint retorna um erro de servidor HTTP 5XX e não processa pagamentos. 
 
@@ -432,3 +431,13 @@ No diretório [rinha-test](./rinha-test) você encontra os artefatos necessário
 
 
 É isso! Boa diversão e não deixe de postar sua evolução nas redes sociais da Rinha de Backend (https://x.com/rinhadebackend, https://bsky.app/profile/rinhadebackend.bsky.social e https://www.linkedin.com/in/francisco-zanfranceschi/).
+
+## Pontos em Aberto
+
+Os seguintes pontos ainda não foram endereçados:
+
+- Definição da pontuação
+- Automação da execução dos testes
+- Script final do teste
+
+Por favor, contribua com esse evento revisando textos, reportando problemas, bugs e inconsistências, dando sugestões e divulgando. Faça parte dessa comunidade!
