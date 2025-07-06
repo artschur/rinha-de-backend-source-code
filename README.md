@@ -6,7 +6,8 @@ A Rinha de Backend é um desafio em que é necessário desenvolver uma solução
 
 Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositórios da [primeira](https://github.com/zanfranceschi/rinha-de-backend-2023-q3) e [segunda](https://github.com/zanfranceschi/rinha-de-backend-2024-q1) edições, [assista a alguns vídeos](https://www.youtube.com/results?search_query=rinha+de+backend), ou [procure na internet](https://www.google.com/search?q=rinha+de+backend) sobre ela – você vai encontrar bastante coisa!
 
-**Rinha nas redes sociais** 
+**Rinha nas redes sociais**
+
 [@rinhadebackend](https://x.com/rinhadebackend)  no X
 [@rinhadebackend.bsky.social](https://bsky.app/profile/rinhadebackend.bsky.social) no Bluesky
 [zan](https://www.linkedin.com/in/francisco-zanfranceschi/) no LinkedIn (criador da rinha)
