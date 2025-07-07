@@ -103,7 +103,7 @@ POST /payments
 {
     "correlationId": "4a7901b8-7d26-4d9d-aa19-4dc1c7cf60b3",
     "amount": 19.90,
-    "requestedAt" : 2025-07-15T12:34:56.000Z
+    "requestedAt" : "2025-07-15T12:34:56.000Z"
 }
 
 HTTP 200 - Ok
@@ -268,9 +268,9 @@ As tabelas abaixo oferem um resumo para facilitar a visão geral da solução.
 **Endpoints a disponíveis nos dois serviços Payment Processor**
 | Endpoint                          | Descrição       |
 | -                                 | -               |
-| POST /payments                    | Requisita o processamento dum pagamento. |
+| POST /payments                    | Requisita o processamento de um pagamento. |
 | GET /payments/service-health      | Verifica as condições de funcionamento do endpoint de pagamentos. Limite de 1 chamada a cada 5 segundos. |
-| GET /payments/{id}                | Exibe detalhes duma requisição de processamento de pagamento. |
+| GET /payments/{id}                | Exibe detalhes de uma requisição de processamento de pagamento. |
 | GET /admin/payments-summary       | Exibe detalhes das requisições de processamento de pagamentos. |
 | PUT /admin/configurations/token   | Redefine um token de acesso necessário para todos os endpoints prefixados com '/admin/' |
 | PUT /admin/configurations/delay   | Configura o atraso no endpoint de pagamentos. |
