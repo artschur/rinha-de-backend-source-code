@@ -34,7 +34,7 @@ Os dois serviços Payment Processor são idênticos em termos de endpoints – a
 
 ## Como Participar
 
-Pessoas de todos os níveis costumam participar da Rinha de Backend – desde iniciantes até pessoas bastante experientes. O mais importante da Rinha é o espírito de cooperação entre os participantes e aprendizado. Entretanto, é recomendado que você tenha conhecimento em alguma lingugem de programação, docker, e git – pelo menos o básico. Ah, e pode participar em dupla de dois, dupla de três, dupla de 15, individualmente, etc. O importante é participar!
+Pessoas de todos os níveis costumam participar da Rinha de Backend – desde iniciantes até pessoas bastante experientes. O mais importante da Rinha é o espírito de cooperação entre os participantes e aprendizado. Entretanto, é recomendado que você tenha conhecimento em alguma linguagem de programação, docker, e git – pelo menos o básico. Ah, e pode participar em dupla de dois, dupla de três, dupla de 15, individualmente, etc. O importante é participar!
 
 As seções seguintes mostram como participar da Rinha.
 
@@ -136,7 +136,7 @@ HTTP 200 - Ok
 
 **resposta**
 - `failing` é um campo sempre presente do tipo booleano que indica se o endpoint **Payments** está disponível. Se não estiver, significa que requisições para o endpoint receberão erros `HTTP5XX`.
-- `minResponseTime` é um campo sempre presente do tipo inteiro indicando o melhor tempo de resposta possível para o endoint **Payments**. Por exemplo, se o valor retornado for `100`, não haverá respostas mais rápidas do que 100ms.
+- `minResponseTime` é um campo sempre presente do tipo inteiro indicando o melhor tempo de resposta possível para o endpoint **Payments**. Por exemplo, se o valor retornado for `100`, não haverá respostas mais rápidas do que 100ms.
 
 
 #### Payment Details
@@ -265,7 +265,7 @@ As tabelas abaixo oferem um resumo para facilitar a visão geral da solução.
 | GET /payments-summary             | Exibe detalhes das requisições de processamento de pagamentos. |
 
 
-**Endpoints a disponíveis nos dois serviços Payment Processor**
+**Endpoints disponíveis nos dois serviços Payment Processor**
 | Endpoint                          | Descrição       |
 | -                                 | -               |
 | POST /payments                    | Requisita o processamento de um pagamento. |
@@ -340,7 +340,7 @@ networks:
 
 Dessa forma, os containers que declaram as duas redes poderão acessar os Payment Processors. O uso de variáveis de ambiente é um exemplo de como você poderá referenciar as URLs dos Payment Processors. Note que as entradas DNS do docker são `payment-processor-default` e `payment-processor-fallback` na porta `8080`.
 
-Para integrar, desenvolver e explorar os Payment Processors basta subir o docker compose dos Payment Processors. Você será capaz de acessá-los os dois serviços através do seu host pelos endereços http://localhost:8001 e http://localhost:8002. A URL raiz mostra algumas informações e oferece um link para explorar as APIs como mostra a imagem seguinnte.
+Para integrar, desenvolver e explorar os Payment Processors basta subir o docker compose dos Payment Processors. Você será capaz de acessá-los os dois serviços através do seu host pelos endereços http://localhost:8001 e http://localhost:8002. A URL raiz mostra algumas informações e oferece um link para explorar as APIs como mostra a imagem seguinte.
 
 ![imagem de dois browsers com a página inicial e um explorador de APIs Redoc.](./misc/imgs/imagens-payment-processor-browser.png)
 
