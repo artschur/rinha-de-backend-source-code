@@ -77,8 +77,8 @@ HTTP 200 - Ok
 }
 ```
 **requisição**
-- `from` é um campo opcional de timestamp no formato ISO.
-- `to` é um campo opcional de timestamp no formato ISO.
+- `from` é um campo opcional de timestamp no formato ISO em UTC (geralmente 3 horas a frente do horário do Brasil).
+- `to` é um campo opcional de timestamp no formato ISO em UTC.
 
 **resposta**
 - `default.totalRequests` é um campo obrigatório do tipo inteiro.
@@ -112,7 +112,7 @@ HTTP 200 - Ok
 **requisição**
 - `correlationId` é um campo obrigatório e único do tipo UUID.
 - `amount` é um campo obrigatório do tipo decimal.
-- `requestedAt` é um campo obrigatório do tipo timestamp no formato ISO.
+- `requestedAt` é um campo obrigatório do tipo timestamp no formato ISO em UTC.
 
 **resposta**
 - `message` é campo sempre presente do tipo texto.
@@ -155,7 +155,7 @@ HTTP 200 - Ok
 **resposta**
 - `correlationId` é um campo sempre presente do tipo UUID.
 - `amount` é um campo sempre presente do tipo decimal.
-- `requestedAt` é um campo sempre presente do tipo timestamp no formato ISO.
+- `requestedAt` é um campo sempre presente do tipo timestamp no formato ISO em UTC.
 
 #### Endpoints Administrativos de Payment Processor
 Os serviços Payment Processor contam com endpoints administrativos. Estes endpoints serão usados durante o teste PELO SCRIPT TESTE e você não deve se integrar com eles na versão final. Entretanto, eles podem ser úteis para simular falhas, tempos demorados de resposta, verificar consistência, etc. Todos os endpoints a seguir exigem um token que deve ser informado no cabeçalho `X-Rinha-Token` na requisição.
@@ -174,8 +174,8 @@ HTTP 200 - Ok
 }
 ```
 **requisição**
-- `from` é um campo opcional de timestamp no formato ISO.
-- `to` é um campo opcional de timestamp no formato ISO.
+- `from` é um campo opcional de timestamp no formato ISO em UTC.
+- `to` é um campo opcional de timestamp no formato ISO em UTC.
 
 **resposta**
 - `totalRequests` é um campo sempre presente do tipo numérico inteiro. Ele mostra quantos pagamentos foram processados no período selecionado ou todos pagamentos se o período não for informado.
