@@ -20,7 +20,7 @@ Nessa terceira edição da Rinha de Backend, o desafio é intermediar (integrar)
 
 ![alt text](./misc/imgs/arq-alto-nivel.png)
 
-Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (supresas) nos endpoints responsáveis por receber as requisições de processamento de pagamentos. Há dois tipos de instabilidade:
+Durante o teste, os dois serviços irão sofrer instabilidades esporádicas (surpresas) nos endpoints responsáveis por receber as requisições de processamento de pagamentos. Há dois tipos de instabilidade:
 1. Tempos de resposta aumentados: o endpoint de pagamentos demora a responder – desde muito a apenas um pouco lento.
 1. Serviço indisponível: o endpoint retorna um erro de servidor HTTP 5XX e não processa pagamentos. 
 
@@ -28,7 +28,7 @@ Caberá a você desenvolver a melhor estratégia para processar pagamentos que s
 
 ![alt text](./misc/imgs/exemplo-proc-assinc.png)
 
-Para facilitar a verificação da disponibildade dos serviços, para cada serviço, é fornecido um endpoint de **health-check** que mostra se o serviço está enfrentando falhas e qual é o tempo mínimo de resposta para o processamento de pagamentos. Entretanto, este endpoint possui um limite de uma chamada para cada cinco segundos. Caso este limite seja ultrapassado, uma resposta `HTTP 429 - Too Many Requests` será retornada. Use-o com sabedoria!
+Para facilitar a verificação da disponibilidade dos serviços, para cada serviço, é fornecido um endpoint de **health-check** que mostra se o serviço está enfrentando falhas e qual é o tempo mínimo de resposta para o processamento de pagamentos. Entretanto, este endpoint possui um limite de uma chamada para cada cinco segundos. Caso este limite seja ultrapassado, uma resposta `HTTP 429 - Too Many Requests` será retornada. Use-o com sabedoria!
 
 Os dois serviços Payment Processor são idênticos em termos de endpoints – a única diferença realmente é a taxa. Novamente, quanto mais requisições de processamento de pagamentos forem enviadas para o serviço **default**, menos taxa você pagará e isso será melhor para a pontuação na Rinha.
 
@@ -135,7 +135,7 @@ HTTP 200 - Ok
     - Não há parâmetros para requisição. Entretanto, este endpoint impõe um limite de chamadas – 1 chamada a cada 5 segundos. Se este limite for ultrapassado, você receberá uma resposta de erro do tipo HTTP 429 - Too Many Requests.
 
 **resposta**
-- `failing` é um campo sempre presente do tipo booleano que indica se o endpoint **Payments** está disponível. Se não estiver, significa que requições para o endpoint receberão erros `HTTP5XX`.
+- `failing` é um campo sempre presente do tipo booleano que indica se o endpoint **Payments** está disponível. Se não estiver, significa que requisições para o endpoint receberão erros `HTTP5XX`.
 - `minResponseTime` é um campo sempre presente do tipo inteiro indicando o melhor tempo de resposta possível para o endoint **Payments**. Por exemplo, se o valor retornado for `100`, não haverá respostas mais rápidas do que 100ms.
 
 
