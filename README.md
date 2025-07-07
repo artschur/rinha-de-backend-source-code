@@ -6,10 +6,12 @@ A Rinha de Backend é um desafio em que é necessário desenvolver uma solução
 
 Se quiser saber mais sobre o espírito da Rinha de Backend, confira os repositórios da [primeira](https://github.com/zanfranceschi/rinha-de-backend-2023-q3) e [segunda](https://github.com/zanfranceschi/rinha-de-backend-2024-q1) edições, [assista a alguns vídeos](https://www.youtube.com/results?search_query=rinha+de+backend), ou [procure na internet](https://www.google.com/search?q=rinha+de+backend) sobre ela – você vai encontrar bastante coisa!
 
-**Rinha nas redes sociais**
+#### Rinha nas redes sociais
+
 [@rinhadebackend](https://x.com/rinhadebackend)  no X
 [@rinhadebackend.bsky.social](https://bsky.app/profile/rinhadebackend.bsky.social) no Bluesky
 [zan](https://www.linkedin.com/in/francisco-zanfranceschi/) no LinkedIn (criador da rinha)
+
 
 ## O Desafio
 Nessa terceira edição da Rinha de Backend, o desafio é intermediar (integrar) requisições de pagamentos para serviços de processamento de pagamentos (chamado aqui de **Payment Processor**) com a menor taxa financeira por transação. Haverá dois serviços Payment Processor: o **default** – com a taxa mais baixa – e o **fallback** que contém a taxa mais alta e deveria ser usado apenas quando o serviço default não estiver disponível.
@@ -366,7 +368,7 @@ Nas edições anteriores, havia restrições de tecnologia – por exemplo, apen
 Uma das essências da Rinha de Backend é a restrição de recursos computacionais. Essa restrições devem ser declaradas junto à declaração dos serviços (ou templates) em seu `docker-compose.yml` e não poderão exceder o seguinte* (distribuído da forma que quiser entre todos os serviços):
 
 - 1.5 unidades de CPU
-- 650MB de memória
+- 350MB de memória
 
 <sub><sup>* Sujeito a mudanças ao decorrer do evento a critério da organização do evento.</sup></sub>
 
@@ -401,7 +403,8 @@ Para ter seu backend testado oficialmente pela Rinha de Backend, ver os resultad
 - Ter suas imagens declaradas no `docker-compose.yml` disponíveis num registro público de imagens (https://hub.docker.com/ por exemplo). As imagens devem ser construídas para plataforma `linux/amd64` – isso é especialmente importante se você desenvolve em Mac ou Windows. Exemplo de como construir uma imagem docker para `linux/amd64`: `docker buildx build --platform linux/amd64 -t your-image-name:tag .`.
 
 - Abrir um PR neste repositório adicionando um diretório com sua identificação em [participantes](participantes/). Neste PR você deverá:
-    - Incluir um `README.md` explicando as tecnologias que usadas e um link para o repositório com o código fonte da sua submissão. **NÃO INCLUA O CÓDIGO FONTE NESSE PR!**
+    - Não incluir o código fonte na submissão! Seu código fonte deverá estar em outro repositório público como mencionado anteriormente. 
+    - Incluir um `README.md` explicando as tecnologias que usadas e um link para o repositório com o código fonte da sua submissão.
     - Incluir o arquivo `docker-compose.yml` na raiz desse repositório com suas dependências (scripts de banco, configurações, etc.).
     - Incluir um arquivo `info.json` com a seguinte estrutura para facilitar a coleta das tecnologias usadas:
     ```json
