@@ -32,7 +32,7 @@ Os dois serviços Payment Processor são idênticos em termos de endpoints – a
 
 ## Como Participar
 
-Pessoas de todos os níveis costumam participar da Rinha de Backend – desde iniciantes até pessoas bastante experientes. O mais importante da Rinha é o espírito de cooperação entre os participantes e aprendizado. Entretanto, é recomendado que você tenha conhecimento em alguma lingugem de programação, docker, e git – pelo menos o básico.
+Pessoas de todos os níveis costumam participar da Rinha de Backend – desde iniciantes até pessoas bastante experientes. O mais importante da Rinha é o espírito de cooperação entre os participantes e aprendizado. Entretanto, é recomendado que você tenha conhecimento em alguma lingugem de programação, docker, e git – pelo menos o básico. Ah, e pode participar em dupla de dois, dupla de três, dupla de 15, individualmente, etc. O importante é participar!
 
 As seções seguintes mostram como participar da Rinha.
 
@@ -346,10 +346,12 @@ Para integrar, desenvolver e explorar os Payment Processors basta subir o docker
 
 **Nota Importante!**
 Após você ter criado seu `docker-compose.yml` com seus serviços, é importante que suba o [docker-compose.yml](./payment-processor/docker-compose.yml) dos Payment Processors antes para que rede `payment-processor` seja criada. Caso contrário, você poderá receber uma mensagem de erro relacionado a redes ao subir seus containers.
-
 ```
 network payment-processor declared as external, but could not be found
 ```
+
+**Nota para Mac Users**
+Use [docker-compose-arm64.yml](./payment-processor/docker-compose-arm64.yml) se seu processador for arm64.
 
 ### Restrições
 
