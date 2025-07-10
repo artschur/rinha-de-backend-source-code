@@ -15,16 +15,15 @@ func CreateRouter(mux *http.ServeMux) {
 		DB:       0,
 	})
 
-	newProcessor := NewPaymentProcessor(100)
 	store := &Store{redisClient}
-	handler := &Handler{store: store, paymentProcessor: newProcessor}
+	newProcessor := NewPaymentProcessor(100, store)
+	handler := &Handler{paymentProcessor: newProcessor}
 
 	mux.HandleFunc("POST /payments", handler.HandlePayments)
 	mux.HandleFunc("GET /payments-summary", handler.HandlePaymentsSummary)
 }
 
 type Handler struct {
-	store            *Store
 	paymentProcessor *PaymentProcessor
 }
 
@@ -48,7 +47,7 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
-	summary, err := h.store.GetSummary(r.Context())
+	summary, err := h.paymentProcessor.store.GetSummary(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
 		return

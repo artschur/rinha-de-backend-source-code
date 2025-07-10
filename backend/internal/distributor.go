@@ -2,8 +2,10 @@ package internal
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -20,33 +22,42 @@ type PaymentProcessor struct {
 	workers     int
 }
 
-func NewPaymentProcessor(workers int) *PaymentProcessor {
+func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
 	paymentChan := make(chan Payment, 1000)
 	processor := &PaymentProcessor{
 		paymentChan: paymentChan,
 		workers:     workers,
+		store:       store,
 	}
 
-	for range 100 {
-		go distributePayment(paymentChan)
+	for range workers {
+		go processor.distributePayment(paymentChan)
 	}
 
 	return processor
 }
 
-func distributePayment(paymentChan chan Payment) {
+func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 	for payment := range paymentChan {
-		respCode, err := sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
+		ctx := context.Background()
+		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
 		if err != nil {
-			fmt.Errorf("error distributing payment, %v", err)
+			log.Println("error sending request to primary processor")
 		}
-		if respCode == http.StatusTooManyRequests {
-			sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+		switch respCode {
+		case http.StatusOK:
+			p.store.IncrementSummary(ctx, payment.Amount, "default")
+		case http.StatusTooManyRequests:
+			_, err := p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+			if err != nil {
+				log.Println("error sending request to secondary processor")
+			}
+			p.store.IncrementSummary(ctx, payment.Amount, "fallback")
 		}
 	}
 }
 
-func sendPaymentToProcessor(url string, payment Payment) (code int, error error) {
+func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (code int, error error) {
 	jsonBody, err := json.Marshal(payment)
 	if err != nil {
 		return 0, fmt.Errorf("error transforming payments to json: %v ", err)
