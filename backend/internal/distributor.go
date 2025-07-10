@@ -26,11 +26,17 @@ type PaymentProcessor struct {
 }
 
 func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
-	paymentChan := make(chan Payment, 1000)
 
 	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10, // Reduced from 100
+			MaxIdleConnsPerHost: 5,  // Reduced from 20
+			IdleConnTimeout:     30 * time.Second,
+			DisableKeepAlives:   false,
+		},
 	}
+	paymentChan := make(chan Payment, 100)
 	processor := &PaymentProcessor{
 		paymentChan: paymentChan,
 		workers:     workers,
@@ -118,6 +124,5 @@ func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (
 		return resp.StatusCode, fmt.Errorf("request failed with status code: %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
-	log.Printf("Payment processed successfully by %s", url)
 	return http.StatusOK, nil
 }

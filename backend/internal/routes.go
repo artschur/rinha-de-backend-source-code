@@ -40,7 +40,7 @@ func CreateRouter(mux *http.ServeMux) {
 	}
 
 	store := &Store{redisClient}
-	newProcessor := NewPaymentProcessor(100, store)
+	newProcessor := NewPaymentProcessor(10, store)
 	handler := &Handler{paymentProcessor: newProcessor}
 
 	mux.HandleFunc("POST /payments", handler.HandlePayments)
@@ -74,7 +74,7 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 	case h.paymentProcessor.paymentChan <- paymentRequest:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"status":        "accepted",
 			"correlationId": paymentRequest.CorrelationId,
 		})
