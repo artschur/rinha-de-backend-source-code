@@ -67,10 +67,20 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "CorrelationId is required", http.StatusBadRequest)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-
-	h.paymentProcessor.paymentChan <- paymentRequest
+	if paymentRequest.ReceivedAt == "" {
+		paymentRequest.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	select {
+	case h.paymentProcessor.paymentChan <- paymentRequest:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":        "accepted",
+			"correlationId": paymentRequest.CorrelationId,
+		})
+	case <-time.After(100 * time.Millisecond):
+		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
+	}
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {

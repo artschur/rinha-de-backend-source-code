@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -47,30 +48,44 @@ func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
 func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 	for payment := range paymentChan {
 		ctx := context.Background()
+		processed := false
+
+		// Try primary processor first
 		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
-		if err != nil {
-			log.Printf("error sending request to primary processor: %v", err)
-			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-			if err != nil {
-				log.Printf("error sending request to secondary processor: %v", err)
-				continue
+		if err == nil {
+			switch respCode {
+			case http.StatusOK:
+				p.store.IncrementSummary(ctx, payment.Amount, "default")
+				processed = true
+			case http.StatusTooManyRequests:
+				// Try fallback for rate limiting
+				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+				if err == nil && respCode == http.StatusOK {
+					p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+					processed = true
+				}
+			case http.StatusUnprocessableEntity: // 422 - business rule error
+				log.Printf("Payment rejected by primary processor: %s", payment.CorrelationId)
+				// Try fallback for business rule failures
+				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+				if err == nil && respCode == http.StatusOK {
+					p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+					processed = true
+				}
 			}
-			p.store.IncrementSummary(ctx, payment.Amount, "fallback")
-			continue
 		}
 
-		switch respCode {
-		case http.StatusOK:
-			p.store.IncrementSummary(ctx, payment.Amount, "default")
-		case http.StatusTooManyRequests:
-			_, err := p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-			if err != nil {
-				log.Printf("error sending request to secondary processor: %v", err)
-			} else {
+		if !processed && err != nil {
+			log.Printf("Primary processor failed: %v, trying fallback", err)
+			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+			if err == nil && respCode == http.StatusOK {
 				p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+				processed = true
 			}
-		default:
-			log.Printf("unexpected response code from primary processor: %d", respCode)
+		}
+
+		if !processed {
+			log.Printf("Payment failed on both processors: %s", payment.CorrelationId)
 		}
 	}
 }
@@ -94,12 +109,13 @@ func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (
 		return 0, fmt.Errorf("error sending request to %s: %w", url, err)
 	}
 	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return http.StatusTooManyRequests, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return resp.StatusCode, fmt.Errorf("request failed with status code: %d", resp.StatusCode)
+		return resp.StatusCode, fmt.Errorf("request failed with status code: %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	log.Printf("Payment processed successfully by %s", url)

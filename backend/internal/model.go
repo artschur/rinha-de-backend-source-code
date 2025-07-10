@@ -11,8 +11,8 @@ type Payment struct {
 }
 
 type PaymentSummary struct {
-	defaultSummary  `json:"default"`
-	fallbackSummary `json:"fallback"`
+	Default  defaultSummary  `json:"default"`
+	Fallback fallbackSummary `json:"fallback"`
 }
 
 type defaultSummary struct {
