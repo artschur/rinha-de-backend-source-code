@@ -17,10 +17,10 @@ type PaymentSummary struct {
 
 type defaultSummary struct {
 	TotalRequests int64   `json:"totalRequests"`
-	TotalAmount   float64 `json:"totatotalAmountlRequests"`
+	TotalAmount   float64 `json:"totalAmount"`
 }
 
 type fallbackSummary struct {
-	TotalRequests int64 `json:"totalRequests"`
-	TotalAmount   int64 `json:"totalAmount"`
+	TotalRequests int64   `json:"totalRequests"`
+	TotalAmount   float64 `json:"totalAmount"`
 }

@@ -10,14 +10,19 @@ type Store struct {
 	redisClient *redis.Client
 }
 
-func (s *Store) IncrementSummary(ctx context.Context, amount float64) error {
+func (s *Store) IncrementSummary(ctx context.Context, amount float64, chosenService string) error {
 	pipe := s.redisClient.Pipeline()
 
-	pipe.HIncrByFloat(ctx, "payment:summary:default", "totalRequests", 1)
-	pipe.HIncrByFloat(ctx, "payment:summary:default", "totalAmount", amount)
-
-	pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalRequests", 1)
-	pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalAmount", amount)
+	switch chosenService {
+	case "default":
+		pipe.HIncrByFloat(ctx, "payment:summary:default", "totalRequests", 1)
+		pipe.HIncrByFloat(ctx, "payment:summary:default", "totalAmount", amount)
+	case "fallback":
+		pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalRequests", 1)
+		pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalAmount", amount)
+	default:
+		return redis.Nil // or handle the error as needed
+	}
 
 	_, err := pipe.Exec(ctx)
 	if err != nil {
