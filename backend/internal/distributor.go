@@ -49,25 +49,36 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 		ctx := context.Background()
 		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
 		if err != nil {
-			log.Printf("error sending request to primary processor, %v \n", err)
+			log.Printf("error sending request to primary processor: %v", err)
+			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
+			if err != nil {
+				log.Printf("error sending request to secondary processor: %v", err)
+				continue
+			}
+			p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+			continue
 		}
+
 		switch respCode {
 		case http.StatusOK:
 			p.store.IncrementSummary(ctx, payment.Amount, "default")
 		case http.StatusTooManyRequests:
 			_, err := p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
 			if err != nil {
-				log.Printf("error sending request to secondary processor, %v \n", err)
+				log.Printf("error sending request to secondary processor: %v", err)
+			} else {
+				p.store.IncrementSummary(ctx, payment.Amount, "fallback")
 			}
-			p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+		default:
+			log.Printf("unexpected response code from primary processor: %d", respCode)
 		}
 	}
 }
 
-func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (code int, error error) {
+func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (int, error) {
 	jsonBody, err := json.Marshal(payment)
 	if err != nil {
-		return 0, fmt.Errorf("error transforming payments to json: %v ", err)
+		return 0, fmt.Errorf("error transforming payment to json: %w", err)
 	}
 
 	bodyReader := bytes.NewReader(jsonBody)
@@ -75,17 +86,22 @@ func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (
 	if err != nil {
 		return 0, fmt.Errorf("error creating request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("error sending request: %w", err)
+		return 0, fmt.Errorf("error sending request to %s: %w", url, err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return http.StatusTooManyRequests, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("request couldnt be received, %v", err)
+		return resp.StatusCode, fmt.Errorf("request failed with status code: %d", resp.StatusCode)
 	}
+
+	log.Printf("Payment processed successfully by %s", url)
 	return http.StatusOK, nil
 }
