@@ -49,7 +49,7 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 		ctx := context.Background()
 		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
 		if err != nil {
-			log.Println("error sending request to primary processor")
+			log.Printf("error sending request to primary processor, %v \n", err)
 		}
 		switch respCode {
 		case http.StatusOK:
@@ -57,7 +57,7 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 		case http.StatusTooManyRequests:
 			_, err := p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
 			if err != nil {
-				log.Println("error sending request to secondary processor")
+				log.Printf("error sending request to secondary processor, %v \n", err)
 			}
 			p.store.IncrementSummary(ctx, payment.Amount, "fallback")
 		}

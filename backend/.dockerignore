@@ -1,0 +1,11 @@
+# Ignore files that don't need to be in the Docker image
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+docker-compose.yaml
+*.md
+
+# Ignore build artifacts
+main

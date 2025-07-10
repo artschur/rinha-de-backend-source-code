@@ -2,6 +2,8 @@ package internal
 
 import (
 	"context"
+	"fmt"
+	"log"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -51,4 +53,26 @@ func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
 		defaultSummary:  defaultSummary,
 		fallbackSummary: fallbackSummary,
 	}, nil
+}
+
+func (s *Store) PurgeAllData(ctx context.Context) error {
+	// Delete all payment summary keys
+	keys := []string{
+		"payment:summary:default",
+		"payment:summary:fallback",
+	}
+
+	pipe := s.redisClient.Pipeline()
+
+	for _, key := range keys {
+		pipe.Del(ctx, key)
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to purge payment data: %w", err)
+	}
+
+	log.Println("Payment data purged successfully")
+	return nil
 }

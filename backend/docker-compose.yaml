@@ -1,0 +1,39 @@
+services:
+  backend-go:
+    build: .
+    container_name: backend-go
+    hostname: backend-go
+    ports:
+      - 9999:9999
+    networks:
+      - backend
+      - payment-processor
+    environment:
+      - REDIS_URL=backend-go-redis:6379
+      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
+      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
+    depends_on:
+      - backend-go-redis
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '200MB'
+
+  backend-go-redis:
+    image: redis:7-alpine
+    container_name: backend-go-redis
+    hostname: backend-go-redis
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '100MB'
+
+networks:
+  backend:
+    driver: bridge
+  payment-processor:
+    external: true
