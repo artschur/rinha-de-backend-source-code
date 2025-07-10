@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 )
 
 var (
@@ -20,14 +21,20 @@ type PaymentProcessor struct {
 	paymentChan chan Payment
 	store       *Store
 	workers     int
+	client      *http.Client
 }
 
 func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
 	paymentChan := make(chan Payment, 1000)
+
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
 	processor := &PaymentProcessor{
 		paymentChan: paymentChan,
 		workers:     workers,
 		store:       store,
+		client:      httpClient,
 	}
 
 	for range workers {
@@ -69,7 +76,7 @@ func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (
 		return 0, fmt.Errorf("error creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("error sending request: %w", err)
 	}

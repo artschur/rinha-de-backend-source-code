@@ -32,11 +32,12 @@ func (s *Store) IncrementSummary(ctx context.Context, amount float64, chosenServ
 	return nil
 }
 
-func (s *Store) GetSummary(ctx context.Context) (summary *PaymentSummary, err error) {
+func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
+	var summary PaymentSummary
 	defaultSummary := summary.defaultSummary
 	fallbackSummary := summary.fallbackSummary
 
-	err = s.redisClient.HGetAll(ctx, "payment:summary:default").Scan(&defaultSummary)
+	err := s.redisClient.HGetAll(ctx, "payment:summary:default").Scan(&defaultSummary)
 	if err != nil {
 		return nil, err
 	}

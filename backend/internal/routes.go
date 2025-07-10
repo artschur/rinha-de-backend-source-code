@@ -42,6 +42,8 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "CorrelationId is required", http.StatusBadRequest)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
 
 	h.paymentProcessor.paymentChan <- paymentRequest
 }
@@ -54,9 +56,9 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(summary); err != nil {
 		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 }
