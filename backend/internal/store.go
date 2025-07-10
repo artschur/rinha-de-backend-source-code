@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -13,46 +14,74 @@ type Store struct {
 }
 
 func (s *Store) IncrementSummary(ctx context.Context, amount float64, chosenService string) error {
-	pipe := s.redisClient.Pipeline()
+	txn := s.redisClient.TxPipeline()
 
 	switch chosenService {
 	case "default":
-		pipe.HIncrByFloat(ctx, "payment:summary:default", "totalRequests", 1)
-		pipe.HIncrByFloat(ctx, "payment:summary:default", "totalAmount", amount)
+		txn.HIncrBy(ctx, "payment:summary:default", "totalRequests", 1)
+		txn.HIncrByFloat(ctx, "payment:summary:default", "totalAmount", amount)
 	case "fallback":
-		pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalRequests", 1)
-		pipe.HIncrByFloat(ctx, "payment:summary:fallback", "totalAmount", amount)
+		txn.HIncrBy(ctx, "payment:summary:fallback", "totalRequests", 1)
+		txn.HIncrByFloat(ctx, "payment:summary:fallback", "totalAmount", amount)
 	default:
-		return redis.Nil // or handle the error as needed
+		return fmt.Errorf("unknown service: %s", chosenService)
 	}
 
-	_, err := pipe.Exec(ctx)
+	_, err := txn.Exec(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("redis transaction failed: %w", err)
 	}
 
 	return nil
 }
 
 func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
-	var summary PaymentSummary
-	defaultSummary := summary.defaultSummary
-	fallbackSummary := summary.fallbackSummary
+	log.Printf("GetSummary called")
 
-	err := s.redisClient.HGetAll(ctx, "payment:summary:default").Scan(&defaultSummary)
+	summary := &PaymentSummary{}
+
+	// Get default summary
+	defaultResult, err := s.redisClient.HGetAll(ctx, "payment:summary:default").Result()
 	if err != nil {
+		log.Printf("ERROR: Failed to get default summary: %v", err)
 		return nil, err
 	}
+	log.Printf("Default Redis data: %+v", defaultResult)
 
-	err = s.redisClient.HGetAll(ctx, "payment:summary:fallback").Scan(&fallbackSummary)
-	if err != nil {
-		return nil, err
+	// Parse default summary
+	if totalReq, ok := defaultResult["totalRequests"]; ok {
+		if val, err := strconv.ParseInt(totalReq, 10, 64); err == nil {
+			summary.Default.TotalRequests = val
+		}
+	}
+	if totalAmt, ok := defaultResult["totalAmount"]; ok {
+		if val, err := strconv.ParseFloat(totalAmt, 64); err == nil {
+			summary.Default.TotalAmount = val
+		}
 	}
 
-	return &PaymentSummary{
-		defaultSummary:  defaultSummary,
-		fallbackSummary: fallbackSummary,
-	}, nil
+	// Get fallback summary
+	fallbackResult, err := s.redisClient.HGetAll(ctx, "payment:summary:fallback").Result()
+	if err != nil {
+		log.Printf("ERROR: Failed to get fallback summary: %v", err)
+		return nil, err
+	}
+	log.Printf("Fallback Redis data: %+v", fallbackResult)
+
+	// Parse fallback summary
+	if totalReq, ok := fallbackResult["totalRequests"]; ok {
+		if val, err := strconv.ParseInt(totalReq, 10, 64); err == nil {
+			summary.Fallback.TotalRequests = val
+		}
+	}
+	if totalAmt, ok := fallbackResult["totalAmount"]; ok {
+		if val, err := strconv.ParseFloat(totalAmt, 64); err == nil {
+			summary.Fallback.TotalAmount = val
+		}
+	}
+
+	log.Printf("Final summary: %+v", summary)
+	return summary, nil
 }
 
 func (s *Store) PurgeAllData(ctx context.Context) error {
