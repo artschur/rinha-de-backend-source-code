@@ -1,4 +1,4 @@
-package internal
+package distributor
 
 import (
 	"bytes"
