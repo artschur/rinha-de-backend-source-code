@@ -61,13 +61,13 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 		if err == nil {
 			switch respCode {
 			case http.StatusOK:
-				p.store.IncrementSummary(ctx, payment.Amount, "default")
+				p.store.IncrementSummary(ctx, payment, "default")
 				processed = true
 			case http.StatusTooManyRequests:
 				// Try fallback for rate limiting
 				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
 				if err == nil && respCode == http.StatusOK {
-					p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+					p.store.IncrementSummary(ctx, payment, "fallback")
 					processed = true
 				}
 			case http.StatusUnprocessableEntity: // 422 - business rule error
@@ -75,7 +75,7 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 				// Try fallback for business rule failures
 				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
 				if err == nil && respCode == http.StatusOK {
-					p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+					p.store.IncrementSummary(ctx, payment, "fallback")
 					processed = true
 				}
 			}
@@ -85,7 +85,7 @@ func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
 			log.Printf("Primary processor failed: %v, trying fallback", err)
 			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
 			if err == nil && respCode == http.StatusOK {
-				p.store.IncrementSummary(ctx, payment.Amount, "fallback")
+				p.store.IncrementSummary(ctx, payment, "fallback")
 				processed = true
 			}
 		}

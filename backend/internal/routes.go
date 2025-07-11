@@ -29,6 +29,7 @@ func CreateRouter(mux *http.ServeMux) {
 		Addr:     redisAddr,
 		Password: "",
 		DB:       0,
+		Protocol: 2,
 	})
 
 	// Test Redis connection
@@ -67,9 +68,9 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "CorrelationId is required", http.StatusBadRequest)
 		return
 	}
-	if paymentRequest.ReceivedAt == "" {
-		paymentRequest.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
-	}
+
+	paymentRequest.ReceivedAt = time.Now().UTC()
+
 	select {
 	case h.paymentProcessor.paymentChan <- paymentRequest:
 		w.Header().Set("Content-Type", "application/json")
@@ -84,17 +85,33 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
-	summary, err := h.paymentProcessor.store.GetSummary(r.Context())
-	if err != nil {
-		http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
-		return
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+
+	var summary *PaymentSummary
+	var err error
+
+	if from != "" || to != "" {
+		summary, err = h.paymentProcessor.store.GetSummaryWithTime(r.Context(), from, to)
+		if err != nil {
+			log.Printf("Error getting time-filtered summary: %v", err)
+			http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		summary, err = h.paymentProcessor.store.GetSummary(r.Context())
+		if err != nil {
+			log.Printf("Error getting cached summary: %v", err)
+			http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(summary); err != nil {
+		log.Printf("Error encoding summary response: %v", err)
 		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
-		return
 	}
 }
 

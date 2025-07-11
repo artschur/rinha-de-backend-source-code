@@ -1,26 +1,23 @@
 package internal
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 )
 
 type Payment struct {
 	CorrelationId uuid.UUID `json:"correlationId"`
 	Amount        float64   `json:"amount"`
-	ReceivedAt    string    `json:"receivedAt"`
+	ReceivedAt    time.Time `json:"receivedAt"`
 }
 
 type PaymentSummary struct {
-	Default  defaultSummary  `json:"default"`
-	Fallback fallbackSummary `json:"fallback"`
+	Default  summary `json:"default"`
+	Fallback summary `json:"fallback"`
 }
 
-type defaultSummary struct {
-	TotalRequests int64   `json:"totalRequests"`
-	TotalAmount   float64 `json:"totalAmount"`
-}
-
-type fallbackSummary struct {
+type summary struct {
 	TotalRequests int64   `json:"totalRequests"`
 	TotalAmount   float64 `json:"totalAmount"`
 }
