@@ -99,14 +99,11 @@ func (s *Store) getServiceSummary(ctx context.Context, service string, fromTime,
 }
 
 func (s *Store) IncrementSummary(ctx context.Context, payment Payment, chosenService string) error {
-	// Store individual payment for time-based queries
 	err := s.StorePayment(ctx, payment, chosenService, payment.ReceivedAt)
 	if err != nil {
 		log.Printf("Warning: Failed to store individual payment: %v", err)
-		// Don't return error - continue with summary increment
 	}
 
-	// Update aggregated summary counters
 	var key string
 	switch chosenService {
 	case "default":
@@ -120,20 +117,16 @@ func (s *Store) IncrementSummary(ctx context.Context, payment Payment, chosenSer
 	maxRetries := 5
 	for i := 0; i < maxRetries; i++ {
 		err := s.redisClient.Watch(ctx, func(tx *redis.Tx) error {
-			// Get current values
 			currentReq := tx.HGet(ctx, key, "totalRequests").Val()
 			currentAmt := tx.HGet(ctx, key, "totalAmount").Val()
 
-			// Parse current values
 			reqVal, _ := strconv.ParseInt(currentReq, 10, 64)
 			amtVal, _ := strconv.ParseFloat(currentAmt, 64)
 
-			// Start transaction
 			pipe := tx.TxPipeline()
 			pipe.HSet(ctx, key, "totalRequests", reqVal+1)
 			pipe.HSet(ctx, key, "totalAmount", amtVal+payment.Amount)
 
-			// Execute transaction
 			_, err := pipe.Exec(ctx)
 			return err
 		}, key)
@@ -158,14 +151,12 @@ func (s *Store) IncrementSummary(ctx context.Context, payment Payment, chosenSer
 func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
 	summary := &PaymentSummary{}
 
-	// Get default summary
 	defaultResult, err := s.redisClient.HGetAll(ctx, "payment:summary:default").Result()
 	if err != nil {
 		log.Printf("ERROR: Failed to get default summary: %v", err)
 		return nil, err
 	}
 
-	// Parse default summary
 	if totalReq, ok := defaultResult["totalRequests"]; ok {
 		if val, err := strconv.ParseInt(totalReq, 10, 64); err == nil {
 			summary.Default.TotalRequests = val
@@ -177,7 +168,6 @@ func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
 		}
 	}
 
-	// Get fallback summary
 	fallbackResult, err := s.redisClient.HGetAll(ctx, "payment:summary:fallback").Result()
 	if err != nil {
 		log.Printf("ERROR: Failed to get fallback summary: %v", err)
@@ -201,32 +191,31 @@ func (s *Store) GetSummary(ctx context.Context) (*PaymentSummary, error) {
 func (s *Store) GetSummaryWithTime(ctx context.Context, from, to string) (*PaymentSummary, error) {
 	var fromTime, toTime time.Time
 	var err error
-
 	if from != "" {
 		fromTime, err = parseFlexibleTime(from)
 		if err != nil {
-			return nil, fmt.Errorf("invalid from date '%s': %w", from, err)
+			return nil, fmt.Errorf("invalid 'from' time: %w", err)
 		}
 	} else {
-		fromTime = time.Unix(0, 0).UTC() // Beginning of time
+		fromTime = time.Time{} // Default to zero time
 	}
-
 	if to != "" {
 		toTime, err = parseFlexibleTime(to)
 		if err != nil {
-			return nil, fmt.Errorf("invalid to date '%s': %w", to, err)
+			return nil, fmt.Errorf("invalid 'to' time: %w", err)
 		}
 	} else {
-		toTime = time.Now().UTC()
+		toTime = time.Now() // Default to current time
+	}
+	summaryDefault := s.getServiceSummary(ctx, "default", fromTime, toTime)
+	summaryFallback := s.getServiceSummary(ctx, "fallback", fromTime, toTime)
+	summary := &PaymentSummary{
+		Default:  summaryDefault,
+		Fallback: summaryFallback,
 	}
 
-	defaultSummary := s.getServiceSummary(ctx, "default", fromTime, toTime)
-	fallbackSummary := s.getServiceSummary(ctx, "fallback", fromTime, toTime)
+	return summary, nil
 
-	return &PaymentSummary{
-		Default:  defaultSummary,
-		Fallback: fallbackSummary,
-	}, nil
 }
 
 func (s *Store) PurgeAllData(ctx context.Context) error {

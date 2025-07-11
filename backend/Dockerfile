@@ -1,5 +1,5 @@
 # Multi-stage build for smaller image
-FROM --platform=linux/arm64 golang:1.24-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -11,13 +11,13 @@ RUN go mod download
 COPY . .
 
 # Build with optimizations for smaller binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
     -a -installsuffix cgo \
     -o main .
 
 # Final stage - minimal image
-FROM --platform=linux/arm64 alpine:latest
+FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 

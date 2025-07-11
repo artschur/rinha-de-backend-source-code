@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"time"
@@ -19,10 +18,9 @@ var (
 )
 
 type PaymentProcessor struct {
-	paymentChan chan Payment
-	store       *Store
-	workers     int
-	client      *http.Client
+	store   *Store
+	workers int
+	client  *http.Client
 }
 
 func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
@@ -36,63 +34,63 @@ func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
 			DisableKeepAlives:   false,
 		},
 	}
-	paymentChan := make(chan Payment, 100)
 	processor := &PaymentProcessor{
-		paymentChan: paymentChan,
-		workers:     workers,
-		store:       store,
-		client:      httpClient,
+		workers: workers,
+		store:   store,
+		client:  httpClient,
 	}
 
 	for range workers {
-		go processor.distributePayment(paymentChan)
+		go processor.distributePayment()
 	}
 
 	return processor
 }
 
-func (p *PaymentProcessor) distributePayment(paymentChan chan Payment) {
-	for payment := range paymentChan {
-		ctx := context.Background()
-		processed := false
+func (p *PaymentProcessor) distributePayment() {
 
-		// Try primary processor first
+	ctx := context.Background()
+	workerID := fmt.Sprintf("worker-%d", time.Now().UnixNano())
+
+	processingQueue := "payments:processing:" + workerID
+	sourceQueue := "payments:queue"
+
+	for {
+		// move para fila de processamento para nao perder caso ocorra crash
+		res, err := p.store.redisClient.RPopLPush(ctx, sourceQueue, processingQueue).Result()
+		if err != nil {
+			if err.Error() != "redis: nil" {
+				log.Printf("❌ Failed to pop from Redis: %v", err)
+			}
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		var payment Payment
+		if err := json.Unmarshal([]byte(res), &payment); err != nil {
+			log.Printf("⚠️ Failed to unmarshal payment: %v", err)
+			continue
+		}
+
 		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
-		if err == nil {
-			switch respCode {
-			case http.StatusOK:
-				p.store.IncrementSummary(ctx, payment, "default")
-				processed = true
-			case http.StatusTooManyRequests:
-				// Try fallback for rate limiting
-				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-				if err == nil && respCode == http.StatusOK {
-					p.store.IncrementSummary(ctx, payment, "fallback")
-					processed = true
-				}
-			case http.StatusUnprocessableEntity: // 422 - business rule error
-				log.Printf("Payment rejected by primary processor: %s", payment.CorrelationId)
-				// Try fallback for business rule failures
-				respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-				if err == nil && respCode == http.StatusOK {
-					p.store.IncrementSummary(ctx, payment, "fallback")
-					processed = true
-				}
-			}
+		if err != nil {
+			log.Printf("❌ Error sending payment to main processor: %v", err)
 		}
-
-		if !processed && err != nil {
-			log.Printf("Primary processor failed: %v, trying fallback", err)
+		if respCode == http.StatusOK && respCode < 300 {
+			p.store.StorePayment(ctx, payment, "default", payment.ReceivedAt)
+			p.store.IncrementSummary(ctx, payment, "default")
+		} else {
+			log.Printf("⚠️ Main processor failed with status %d, trying fallback", respCode)
 			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-			if err == nil && respCode == http.StatusOK {
+			if err != nil {
+				log.Printf("❌ Error sending payment to fallback processor: %v", err)
+			}
+			if respCode == http.StatusOK {
+				p.store.StorePayment(ctx, payment, "fallback", payment.ReceivedAt)
 				p.store.IncrementSummary(ctx, payment, "fallback")
-				processed = true
 			}
 		}
-
-		if !processed {
-			log.Printf("Payment failed on both processors: %s", payment.CorrelationId)
-		}
+		p.store.redisClient.LRem(context.Background(), processingQueue, 0, res)
 	}
 }
 
@@ -114,15 +112,10 @@ func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (
 	if err != nil {
 		return 0, fmt.Errorf("error sending request to %s: %w", url, err)
 	}
+
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode == http.StatusTooManyRequests {
-		return http.StatusTooManyRequests, nil
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, fmt.Errorf("received non-2xx response: %d", resp.StatusCode)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return resp.StatusCode, fmt.Errorf("request failed with status code: %d, body: %s", resp.StatusCode, string(respBody))
-	}
-
-	return http.StatusOK, nil
+	return resp.StatusCode, nil
 }

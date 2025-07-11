@@ -71,16 +71,29 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 
 	paymentRequest.ReceivedAt = time.Now().UTC()
 
-	select {
-	case h.paymentProcessor.paymentChan <- paymentRequest:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status":        "accepted",
-			"correlationId": paymentRequest.CorrelationId,
-		})
-	case <-time.After(100 * time.Millisecond):
-		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
+	payload, err := json.Marshal(paymentRequest)
+	if err != nil {
+		log.Printf("Error marshalling payment request: %v", err)
+		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
+		return
+	}
+	if err := h.paymentProcessor.store.redisClient.LPush(r.Context(), "payments:queue", payload).Err(); err != nil {
+		log.Printf("Error pushing payment to Redis: %v", err)
+		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	response := map[string]string{
+		"status":        "success",
+		"message":       "Payment request accepted",
+		"correlationId": paymentRequest.CorrelationId.String(),
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
 	}
 }
 
