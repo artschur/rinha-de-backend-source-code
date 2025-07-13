@@ -7,24 +7,32 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"rinha-backend-arthur/internal/models"
+	"rinha-backend-arthur/internal/store"
 	"time"
 )
 
+type PaymentProcessorDestination struct {
+	URL        string
+	HEALTH_URL string // health check URL
+	Service    string // default or fallback
+}
+
 var (
-	MAIN_PAYMENT_PROCESSOR_URL      = "http://payment-processor-default:8080/payments"
-	SECONDARY_PAYMENT_PROCESSOR_URL = "http://payment-processor-fallback:8080/payments"
+	MAIN_PAYMENT_PROCESSOR_URL      = "http://payment-processor-default:8080/payments/"
+	SECONDARY_PAYMENT_PROCESSOR_URL = "http://payment-processor-fallback:8080/payments/"
 	MAIN_HEALTH_URL                 = "http://payment-processor-default:8080/payments/service-health"
 	SECONDARY_HEALTH_URL            = "http://payment-processor-fallback:8080/payments/service-health"
 )
 
 type PaymentProcessor struct {
-	store   *Store
-	workers int
-	client  *http.Client
+	Store            *store.Store
+	workers          int
+	client           *http.Client
+	healthyProcessor *PaymentProcessorDestination
 }
 
-func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
-
+func NewPaymentProcessor(workers int, store *store.Store) *PaymentProcessor {
 	httpClient := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
@@ -34,88 +42,145 @@ func NewPaymentProcessor(workers int, store *Store) *PaymentProcessor {
 			DisableKeepAlives:   false,
 		},
 	}
+
 	processor := &PaymentProcessor{
 		workers: workers,
-		store:   store,
+		Store:   store,
 		client:  httpClient,
+		healthyProcessor: &PaymentProcessorDestination{
+			URL:        MAIN_PAYMENT_PROCESSOR_URL,
+			Service:    "default",
+			HEALTH_URL: MAIN_HEALTH_URL,
+		},
 	}
 
-	for range workers {
-		go processor.distributePayment()
+	processor.healthyProcessor = &PaymentProcessorDestination{}
+	for i := 0; i < workers; i++ {
+		go processor.distributePayment(i)
 	}
 
+	go processor.automatedHealthCheck()
 	return processor
 }
 
-func (p *PaymentProcessor) distributePayment() {
+func (p *PaymentProcessor) distributePayment(workerNum int) {
+
+	if p.Store == nil || p.Store.RedisClient == nil {
+		log.Fatal("PaymentProcessor store or RedisClient is nil!")
+	}
 
 	ctx := context.Background()
-	workerID := fmt.Sprintf("worker-%d", time.Now().UnixNano())
-
-	processingQueue := "payments:processing:" + workerID
-	sourceQueue := "payments:queue"
-
 	for {
-		// move para fila de processamento para nao perder caso ocorra crash
-		res, err := p.store.redisClient.RPopLPush(ctx, sourceQueue, processingQueue).Result()
+		result, err := p.Store.RedisClient.RPop(ctx, "payments:queue").Result()
 		if err != nil {
-			if err.Error() != "redis: nil" {
-				log.Printf("❌ Failed to pop from Redis: %v", err)
+			if err.Error() == "redis: nil" {
+				// no payments in the queue, wait before checking again
+				time.Sleep(1 * time.Second)
+				continue
 			}
-			time.Sleep(1 * time.Second)
+			// Handle other errors (e.g., connection issues)
 			continue
 		}
 
-		var payment Payment
-		if err := json.Unmarshal([]byte(res), &payment); err != nil {
-			log.Printf("⚠️ Failed to unmarshal payment: %v", err)
+		var payment models.PaymentRequest
+		if err := json.Unmarshal([]byte(result), &payment); err != nil {
+			fmt.Printf("[Worker %s-%d] Failed to unmarshal payment: %v\n", workerNum, workerNum, err)
 			continue
 		}
 
-		respCode, err := p.sendPaymentToProcessor(MAIN_PAYMENT_PROCESSOR_URL, payment)
-		if err != nil {
-			log.Printf("❌ Error sending payment to main processor: %v", err)
-		}
-		if respCode == http.StatusOK && respCode < 300 {
-			p.store.StorePayment(ctx, payment, "default", payment.ReceivedAt)
-			p.store.IncrementSummary(ctx, payment, "default")
+		if err := p.ProccessPayments(payment); err != nil {
+			fmt.Printf("[Worker %s] Failed to process payment: %v\n", workerNum, err)
 		} else {
-			log.Printf("⚠️ Main processor failed with status %d, trying fallback", respCode)
-			respCode, err = p.sendPaymentToProcessor(SECONDARY_PAYMENT_PROCESSOR_URL, payment)
-			if err != nil {
-				log.Printf("❌ Error sending payment to fallback processor: %v", err)
-			}
-			if respCode == http.StatusOK {
-				p.store.StorePayment(ctx, payment, "fallback", payment.ReceivedAt)
-				p.store.IncrementSummary(ctx, payment, "fallback")
-			}
+			fmt.Printf("[Worker %s] Payment processed: %s\n", workerNum, payment.CorrelationId)
 		}
-		p.store.redisClient.LRem(context.Background(), processingQueue, 0, res)
+
 	}
 }
 
-func (p *PaymentProcessor) sendPaymentToProcessor(url string, payment Payment) (int, error) {
-	jsonBody, err := json.Marshal(payment)
+func (p *PaymentProcessor) ProccessPayments(paymentRequest models.PaymentRequest) (err error) {
+	requestBody, err := json.Marshal(paymentRequest)
 	if err != nil {
-		return 0, fmt.Errorf("error transforming payment to json: %w", err)
+		return err
 	}
 
-	bodyReader := bytes.NewReader(jsonBody)
-	req, err := http.NewRequest(http.MethodPost, url, bodyReader)
+	resp, err := p.client.Post(p.healthyProcessor.URL, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return 0, fmt.Errorf("error creating request: %w", err)
+		return fmt.Errorf("failed to send payment request to processor %v: %w", p.healthyProcessor.Service, err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("error sending request to %s: %w", url, err)
-	}
-
-	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.StatusCode, fmt.Errorf("received non-2xx response: %d", resp.StatusCode)
+		return fmt.Errorf("error sending to payment processor %s", p.healthyProcessor.Service)
 	}
-	return resp.StatusCode, nil
+
+	timeSent := time.Now().UTC()
+	processedPayment := models.Payment{
+		PaymentRequest: paymentRequest,
+		Service:        p.healthyProcessor.Service,
+		ReceivedAt:     timeSent,
+	}
+
+	err = p.Store.StorePayment(context.Background(), processedPayment)
+	if err != nil {
+		return fmt.Errorf("failed to save payment in redis: %w", err)
+	}
+
+	log.Println("PAYMENT SAVED ON REDIS")
+	return nil
+}
+
+func (p *PaymentProcessor) automatedHealthCheck() {
+	for {
+		healthyProcessor := p.getHealthyProcessor()
+		if healthyProcessor != nil {
+			p.healthyProcessor = healthyProcessor
+		} else {
+			p.healthyProcessor = nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (p *PaymentProcessor) getHealthyProcessor() *PaymentProcessorDestination {
+	if p.healthyProcessor != nil {
+		return p.healthyProcessor
+	}
+
+	if p.checkHealth(MAIN_HEALTH_URL) {
+		p.healthyProcessor = &PaymentProcessorDestination{
+			URL:        MAIN_PAYMENT_PROCESSOR_URL,
+			Service:    "default",
+			HEALTH_URL: MAIN_HEALTH_URL,
+		}
+		return p.healthyProcessor
+	}
+
+	if p.checkHealth(SECONDARY_HEALTH_URL) {
+		p.healthyProcessor = &PaymentProcessorDestination{
+			URL:        SECONDARY_PAYMENT_PROCESSOR_URL,
+			Service:    "fallback",
+			HEALTH_URL: SECONDARY_HEALTH_URL,
+		}
+		return p.healthyProcessor
+	}
+
+	return nil
+}
+
+func (p *PaymentProcessor) checkHealth(url string) bool {
+	resp, err := p.client.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	var healthCheckResponse models.HealthCheckResponse
+	err = json.NewDecoder(resp.Body).Decode(&healthCheckResponse)
+	if err != nil {
+		return false
+	}
+	if !healthCheckResponse.Failing {
+		return false
+	}
+
+	return true
 }

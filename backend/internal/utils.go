@@ -2,12 +2,62 @@ package internal
 
 import (
 	"fmt"
+	"log"
+	"rinha-backend-arthur/internal/models"
 	"time"
 )
 
-func parseFlexibleTime(timeStr string) (time.Time, error) {
+func buildSummary(payments []models.Payment) models.PaymentSummary {
+	summary := models.PaymentSummary{
+		Default:  models.Summary{},
+		Fallback: models.Summary{},
+	}
+
+	for _, payments := range payments {
+		switch payments.Service {
+		case "default":
+			summary.Default.TotalRequests++
+			summary.Default.TotalAmount += payments.Amount
+		case "fallback":
+			summary.Fallback.TotalRequests++
+			summary.Fallback.TotalAmount += payments.Amount
+		default:
+			// Ignore payments with unknown service
+			log.Printf("Warning: Unknown service '%s' for payment with correlation ID %s", payments.Service, payments.CorrelationId)
+			continue
+		}
+	}
+
+	return summary
+}
+
+func PaymentsToSummary(payments []models.Payment, from, to time.Time) models.PaymentSummary {
+
+	validPayments := []models.Payment{}
+	switch {
+	case from.IsZero() && to.IsZero():
+		return buildSummary(payments)
+	case !from.IsZero() && !to.IsZero():
+		for _, payment := range payments {
+			if payment.ReceivedAt.Before(from) || payment.ReceivedAt.After(to) {
+				continue
+			}
+			validPayments = append(validPayments, payment)
+		}
+	}
+
+	if len(validPayments) == 0 {
+		return models.PaymentSummary{
+			Default:  models.Summary{},
+			Fallback: models.Summary{},
+		}
+	}
+	return buildSummary(validPayments)
+}
+
+func ParseFlexibleTime(timeStr string) (time.Time, error) {
 	if timeStr == "" {
-		return time.Time{}, fmt.Errorf("empty time string")
+		return time.Time{}, nil
 	}
 
 	// Formatos ISO 8601 UTC conforme especificação

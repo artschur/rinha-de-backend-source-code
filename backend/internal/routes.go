@@ -1,38 +1,28 @@
-package routes
+package internal
 
 import (
 	"context"
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"strings"
+
+	"rinha-backend-arthur/internal/distributor"
+	"rinha-backend-arthur/internal/models"
+	"rinha-backend-arthur/internal/store"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
-func CreateRouter(mux *http.ServeMux) {
-	// Handle Redis URL from environment
-	redisURL := os.Getenv("REDIS_URL")
-	var redisAddr string
-
-	if redisURL != "" {
-		// Remove redis:// prefix if present
-		redisAddr = strings.TrimPrefix(redisURL, "redis://")
-	} else {
-		redisAddr = "localhost:6379"
-	}
+func CreateRouter(mux *http.ServeMux, config Config) {
 
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
+		Addr:     config.RedisURL,
 		Password: "",
 		DB:       0,
-		Protocol: 2,
 	})
 
-	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -40,8 +30,11 @@ func CreateRouter(mux *http.ServeMux) {
 		log.Printf("Warning: Redis connection failed: %v", err)
 	}
 
-	store := &Store{redisClient}
-	newProcessor := NewPaymentProcessor(10, store)
+	store := &store.Store{
+		RedisClient: redisClient,
+	}
+
+	newProcessor := distributor.NewPaymentProcessor(config.Workers, store)
 	handler := &Handler{paymentProcessor: newProcessor}
 
 	mux.HandleFunc("POST /payments", handler.HandlePayments)
@@ -50,11 +43,11 @@ func CreateRouter(mux *http.ServeMux) {
 }
 
 type Handler struct {
-	paymentProcessor *PaymentProcessor
+	paymentProcessor *distributor.PaymentProcessor
 }
 
 func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
-	var paymentRequest Payment
+	var paymentRequest models.PaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&paymentRequest); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -69,15 +62,19 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	paymentRequest.ReceivedAt = time.Now().UTC()
+	payment := models.Payment{
+		PaymentRequest: paymentRequest,
+		ReceivedAt:     time.Now().UTC(),
+	}
 
-	payload, err := json.Marshal(paymentRequest)
+	payload, err := json.Marshal(payment)
 	if err != nil {
 		log.Printf("Error marshalling payment request: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
 		return
 	}
-	if err := h.paymentProcessor.store.redisClient.LPush(r.Context(), "payments:queue", payload).Err(); err != nil {
+
+	if err := h.paymentProcessor.Store.RedisClient.LPush(r.Context(), "payments:queue", payload).Err(); err != nil {
 		log.Printf("Error pushing payment to Redis: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
 		return
@@ -98,27 +95,31 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
+
+	payments, err := h.paymentProcessor.Store.GetAllPayments(r.Context())
+	if err != nil {
+		log.Printf("Error retrieving payments: %v", err)
+		http.Error(w, "Failed to retrieve payments", http.StatusInternalServerError)
+		return
+	}
+
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 
-	var summary *PaymentSummary
-	var err error
-
-	if from != "" || to != "" {
-		summary, err = h.paymentProcessor.store.GetSummaryWithTime(r.Context(), from, to)
-		if err != nil {
-			log.Printf("Error getting time-filtered summary: %v", err)
-			http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		summary, err = h.paymentProcessor.store.GetSummary(r.Context())
-		if err != nil {
-			log.Printf("Error getting cached summary: %v", err)
-			http.Error(w, "Failed to retrieve summary", http.StatusInternalServerError)
-			return
-		}
+	fromTime, err := ParseFlexibleTime(from)
+	if err != nil {
+		log.Printf("Error parsing 'from' time: %v", err)
+		http.Error(w, "Invalid 'from' time format", http.StatusBadRequest)
+		return
 	}
+	toTime, err := ParseFlexibleTime(to)
+	if err != nil {
+		log.Printf("Error parsing 'to' time: %v", err)
+		http.Error(w, "Invalid 'to' time format", http.StatusBadRequest)
+		return
+	}
+
+	summary := PaymentsToSummary(payments, fromTime, toTime)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -132,7 +133,7 @@ func (h *Handler) HandlePurgePayments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Delete all payment summary data from Redis
-	err := h.paymentProcessor.store.PurgeAllData(ctx)
+	err := h.paymentProcessor.Store.PurgeAllData(ctx)
 	if err != nil {
 		log.Printf("Error purging payment data: %v", err)
 		http.Error(w, "Failed to purge payment data", http.StatusInternalServerError)
