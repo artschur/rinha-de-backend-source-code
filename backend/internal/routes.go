@@ -62,12 +62,9 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payment := models.Payment{
-		PaymentRequest: paymentRequest,
-		ReceivedAt:     time.Now().UTC(),
-	}
+	paymentRequest.RequestedAt = time.Now().UTC()
 
-	payload, err := json.Marshal(payment)
+	payload, err := json.Marshal(paymentRequest)
 	if err != nil {
 		log.Printf("Error marshalling payment request: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
@@ -87,39 +84,29 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		"message":       "Payment request accepted",
 		"correlationId": paymentRequest.CorrelationId.String(),
 	}
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding response: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
+	from, to, err := parseTimeRange(fromStr, toStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Always get all payments - let PaymentsToSummary handle filtering
 	payments, err := h.paymentProcessor.Store.GetAllPayments(r.Context())
 	if err != nil {
-		log.Printf("Error retrieving payments: %v", err)
+		log.Printf("Error getting payments: %v", err)
 		http.Error(w, "Failed to retrieve payments", http.StatusInternalServerError)
 		return
 	}
 
-	from := r.URL.Query().Get("from")
-	to := r.URL.Query().Get("to")
-
-	fromTime, err := ParseFlexibleTime(from)
-	if err != nil {
-		log.Printf("Error parsing 'from' time: %v", err)
-		http.Error(w, "Invalid 'from' time format", http.StatusBadRequest)
-		return
-	}
-	toTime, err := ParseFlexibleTime(to)
-	if err != nil {
-		log.Printf("Error parsing 'to' time: %v", err)
-		http.Error(w, "Invalid 'to' time format", http.StatusBadRequest)
-		return
-	}
-
-	summary := PaymentsToSummary(payments, fromTime, toTime)
+	// PaymentsToSummary handles all cases: no filter, from only, to only, both
+	summary := PaymentsToSummary(payments, from, to)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

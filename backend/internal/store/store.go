@@ -22,7 +22,7 @@ func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error 
 		"correlationId": payment.CorrelationId.String(), // Convert UUID to string
 		"amount":        payment.Amount,
 		"service":       payment.Service,
-		"timestamp":     payment.ReceivedAt.Unix(),
+		"timestamp":     payment.RequestedAt.Unix(),
 	}
 
 	err := s.RedisClient.HMSet(ctx, paymentKey, paymentData).Err()
@@ -64,9 +64,9 @@ func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
 			PaymentRequest: models.PaymentRequest{
 				CorrelationId: uuid.MustParse(correlationId), // Parse UUID from string
 				Amount:        amtFloat,                      // Convert string to float64
+				RequestedAt:   time.Unix(timestampParsed, 0).UTC(),
 			},
-			Service:    service,
-			ReceivedAt: time.Unix(timestampParsed, 0).UTC(),
+			Service: service,
 		}
 		payments = append(payments, payment)
 	}

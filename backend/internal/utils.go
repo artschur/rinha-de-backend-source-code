@@ -31,27 +31,54 @@ func buildSummary(payments []models.Payment) models.PaymentSummary {
 	return summary
 }
 
-func PaymentsToSummary(payments []models.Payment, from, to time.Time) models.PaymentSummary {
+func parseTimeRange(fromStr, toStr string) (from, to time.Time, err error) {
+	// Both are optional - can have none, one, or both
+	if fromStr == "" && toStr == "" {
+		return // Both zero values means no filtering
+	}
 
+	// Parse from if provided
+	if fromStr != "" {
+		from, err = ParseFlexibleTime(fromStr) // Use your capitalized function
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' time format: %w", err)
+		}
+	}
+
+	// Parse to if provided
+	if toStr != "" {
+		to, err = ParseFlexibleTime(toStr) // Use your capitalized function
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' time format: %w", err)
+		}
+	}
+
+	// Validate that from is before to (if both are provided)
+	if !from.IsZero() && !to.IsZero() && from.After(to) {
+		return time.Time{}, time.Time{}, fmt.Errorf("'from' must be before or equal to 'to'")
+	}
+
+	return from, to, nil
+}
+
+func PaymentsToSummary(payments []models.Payment, from, to time.Time) models.PaymentSummary {
 	validPayments := []models.Payment{}
-	switch {
-	case from.IsZero() && to.IsZero():
-		return buildSummary(payments)
-	case !from.IsZero() && !to.IsZero():
-		for _, payment := range payments {
-			if payment.ReceivedAt.Before(from) || payment.ReceivedAt.After(to) {
-				continue
-			}
+
+	for _, payment := range payments {
+		include := true
+
+		if !from.IsZero() && payment.RequestedAt.Before(from) {
+			include = false
+		}
+		if !to.IsZero() && payment.RequestedAt.After(to) {
+			include = false
+		}
+
+		if include {
 			validPayments = append(validPayments, payment)
 		}
 	}
 
-	if len(validPayments) == 0 {
-		return models.PaymentSummary{
-			Default:  models.Summary{},
-			Fallback: models.Summary{},
-		}
-	}
 	return buildSummary(validPayments)
 }
 

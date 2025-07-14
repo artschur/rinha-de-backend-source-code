@@ -9,11 +9,12 @@ import (
 type PaymentRequest struct {
 	CorrelationId uuid.UUID `json:"correlationId"`
 	Amount        float64   `json:"amount"`
+	RequestedAt   time.Time `json:"requestedAt"` // Add this field!
 }
+
 type Payment struct {
 	PaymentRequest
-	Service    string    `json:"-"`
-	ReceivedAt time.Time `json:"receivedAt"`
+	Service string `json:"-"` // Don't include in JSON
 }
 
 type PaymentSummary struct {
