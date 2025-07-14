@@ -33,45 +33,79 @@ func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error 
 
 	return nil
 }
-
 func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
+	// Get all keys first
 	keys, err := s.RedisClient.Keys(ctx, "payment:*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payment keys: %w", err)
 	}
 
+	if len(keys) == 0 {
+		return []models.Payment{}, nil
+	}
+
+	// Use pipeline for batch operations
+	pipe := s.RedisClient.Pipeline()
+
+	// Queue all HGETALL commands
+	cmds := make([]*redis.MapStringStringCmd, len(keys))
+	for i, key := range keys {
+		cmds[i] = pipe.HGetAll(ctx, key)
+	}
+
+	// Execute all commands at once
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute pipeline: %w", err)
+	}
+
+	// Process results
 	var payments []models.Payment
-	for _, key := range keys {
-		data, err := s.RedisClient.HGetAll(ctx, key).Result()
+	for i, cmd := range cmds {
+		data, err := cmd.Result()
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve payment data for key %s: %w", key, err)
+			log.Printf("Warning: failed to get data for key %s: %v", keys[i], err)
+			continue
 		}
 
-		correlationId, _ := data["correlationId"]
-		amount, _ := data["amount"]
-		service, _ := data["service"]
-		timestamp, _ := data["timestamp"]
-		amtFloat, err := strconv.ParseFloat(amount, 64)
+		payment, err := s.parsePaymentFromRedisData(data)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse amount for key %s: %w", key, err)
-		}
-		timestampParsed, err := strconv.ParseInt(timestamp, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse timestamp for key %s: %w", key, err)
+			log.Printf("Warning: failed to parse payment from key %s: %v", keys[i], err)
+			continue
 		}
 
-		payment := models.Payment{
-			PaymentRequest: models.PaymentRequest{
-				CorrelationId: uuid.MustParse(correlationId), // Parse UUID from string
-				Amount:        amtFloat,                      // Convert string to float64
-				RequestedAt:   time.Unix(timestampParsed, 0).UTC(),
-			},
-			Service: service,
-		}
 		payments = append(payments, payment)
 	}
 
 	return payments, nil
+}
+
+func (s *Store) parsePaymentFromRedisData(data map[string]string) (models.Payment, error) {
+	correlationId, _ := data["correlationId"]
+	amount, _ := data["amount"]
+	service, _ := data["service"]
+	timestamp, _ := data["timestamp"]
+
+	amtFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return models.Payment{}, fmt.Errorf("failed to parse amount: %w", err)
+	}
+
+	timestampParsed, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return models.Payment{}, fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	payment := models.Payment{
+		PaymentRequest: models.PaymentRequest{
+			CorrelationId: uuid.MustParse(correlationId),
+			Amount:        amtFloat,
+			RequestedAt:   time.Unix(timestampParsed, 0).UTC(),
+		},
+		Service: service,
+	}
+
+	return payment, nil
 }
 
 func (s *Store) PurgeAllData(ctx context.Context) error {
