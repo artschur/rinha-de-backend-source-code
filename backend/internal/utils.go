@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"log"
 	"rinha-backend-arthur/internal/models"
 	"time"
 )
@@ -13,20 +12,20 @@ func buildSummary(payments []models.Payment) models.PaymentSummary {
 		Fallback: models.Summary{},
 	}
 
-	for _, payments := range payments {
-		switch payments.Service {
+	for _, payment := range payments {
+		switch payment.Service {
 		case "default":
 			summary.Default.TotalRequests++
-			summary.Default.TotalAmount += payments.Amount
+			summary.Default.TotalAmount += payment.Amount
 		case "fallback":
 			summary.Fallback.TotalRequests++
-			summary.Fallback.TotalAmount += payments.Amount
-		default:
-			// Ignore payments with unknown service
-			log.Printf("Warning: Unknown service '%s' for payment with correlation ID %s", payments.Service, payments.CorrelationId)
-			continue
+			summary.Fallback.TotalAmount += payment.Amount
 		}
 	}
+
+	// Round to 2 decimal places to match payment processor behavior
+	// summary.Default.TotalAmount = math.Round(summary.Default.TotalAmount*100) / 100
+	// summary.Fallback.TotalAmount = math.Round(summary.Fallback.TotalAmount*100) / 100
 
 	return summary
 }

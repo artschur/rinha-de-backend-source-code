@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"log"
 	"rinha-backend-arthur/internal/models"
 	"strconv"
 	"time"
@@ -29,12 +28,11 @@ func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error 
 	if err != nil {
 		return fmt.Errorf("failed to store payment: %w", err)
 	}
-	log.Println("saved payment")
 
 	return nil
 }
+
 func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
-	// Get all keys first
 	keys, err := s.RedisClient.Keys(ctx, "payment:*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payment keys: %w", err)
@@ -44,29 +42,48 @@ func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
 		return []models.Payment{}, nil
 	}
 
-	pipe := s.RedisClient.Pipeline()
+	var allPayments []models.Payment
+	batchSize := 500 // Process in smaller batches
 
+	for i := 0; i < len(keys); i += batchSize {
+		end := i + batchSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+
+		batchPayments, err := s.getPaymentsBatch(ctx, keys[i:end])
+		if err != nil {
+			return nil, err
+		}
+
+		allPayments = append(allPayments, batchPayments...)
+	}
+
+	return allPayments, nil
+}
+
+func (s *Store) getPaymentsBatch(ctx context.Context, keys []string) ([]models.Payment, error) {
+	pipe := s.RedisClient.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(keys))
+
 	for i, key := range keys {
 		cmds[i] = pipe.HGetAll(ctx, key)
 	}
 
-	_, err = pipe.Exec(ctx)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute pipeline: %w", err)
+		return nil, err
 	}
 
 	var payments []models.Payment
-	for i, cmd := range cmds {
+	for _, cmd := range cmds {
 		data, err := cmd.Result()
-		if err != nil {
-			log.Printf("Warning: failed to get data for key %s: %v", keys[i], err)
+		if err != nil || len(data) == 0 {
 			continue
 		}
 
 		payment, err := s.parsePaymentFromRedisData(data)
 		if err != nil {
-			log.Printf("Warning: failed to parse payment from key %s: %v", keys[i], err)
 			continue
 		}
 

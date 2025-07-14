@@ -38,7 +38,7 @@ services:
       resources:
         limits:
           cpus: '0.75'
-          memory: '125MB'
+          memory: '115MB'
 
   backend-go-2:
     build: .
@@ -60,7 +60,7 @@ services:
       resources:
         limits:
           cpus: '0.75'
-          memory: '125MB'
+          memory: '115MB'
 
   backend-go-redis:
     image: redis:7-alpine
@@ -72,7 +72,7 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '50MB'
+          memory: '70MB'
 
 networks:
   backend:

@@ -91,8 +91,7 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 
 		if err := p.ProcessPayments(payment); err != nil {
 			fmt.Printf("[Worker %s] Failed to process payment: %v\n", workerNum, err)
-		} else {
-			fmt.Printf("[Worker %s] Payment processed: %s\n", workerNum, payment.CorrelationId)
+			p.Store.RedisClient.LPush(ctx, "payments:queue", result) // Requeue the payment
 		}
 
 	}
@@ -134,8 +133,7 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 	return nil
 }
 
-func (p *PaymentProcessor) checkHealth(url string) bool {
-	log.Printf("Checking health for: %s", url)
+func (p *PaymentProcessor) isHealthy(url string) bool {
 
 	resp, err := p.client.Get(url)
 	if err != nil {
@@ -151,12 +149,11 @@ func (p *PaymentProcessor) checkHealth(url string) bool {
 		return false
 	}
 
-	if !healthCheckResponse.Failing {
-		log.Printf("Health check for %s: failing=false, considering unhealthy", url)
-		return true
+	if healthCheckResponse.Failing {
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (p *PaymentProcessor) startHealthCheckLoop() {
@@ -200,7 +197,7 @@ func (p *PaymentProcessor) updateHealthyProcessorWithRedis() {
 	log.Printf("=== Starting health check cycle ===")
 
 	// Check main processor first
-	mainHealthy := p.checkHealth(MAIN_HEALTH_URL)
+	mainHealthy := p.isHealthy(MAIN_HEALTH_URL)
 	log.Printf("Main processor health: %v", mainHealthy)
 
 	if mainHealthy {
@@ -217,7 +214,7 @@ func (p *PaymentProcessor) updateHealthyProcessorWithRedis() {
 	}
 
 	// Check fallback processor
-	fallbackHealthy := p.checkHealth(SECONDARY_HEALTH_URL)
+	fallbackHealthy := p.isHealthy(SECONDARY_HEALTH_URL)
 	log.Printf("Fallback processor health: %v", fallbackHealthy)
 
 	if fallbackHealthy {
