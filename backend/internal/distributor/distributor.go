@@ -99,26 +99,31 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 }
 
 func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest) error {
-	// Just marshal the struct directly - perfect JSON!
+	// Capture the processor at the START to avoid mid-flight changes
+	currentProcessor := p.healthyProcessor
+	if currentProcessor == nil {
+		return fmt.Errorf("no healthy processor available")
+	}
+
 	requestBody, err := json.Marshal(paymentRequest)
 	if err != nil {
 		return err
 	}
 
-	resp, err := p.client.Post(p.healthyProcessor.URL, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := p.client.Post(currentProcessor.URL, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return fmt.Errorf("failed to send payment request to processor %s: %w", p.healthyProcessor.Service, err)
+		return fmt.Errorf("failed to send payment request to processor %s: %w", currentProcessor.Service, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("error sending to payment processor %s: status %d", p.healthyProcessor.Service, resp.StatusCode)
+		return fmt.Errorf("error sending to payment processor %s: status %d", currentProcessor.Service, resp.StatusCode)
 	}
 
-	// Create payment record with same timestamp
+	// Use the SAME processor reference that we sent to
 	processedPayment := models.Payment{
-		PaymentRequest: paymentRequest, // This includes RequestedAt!
-		Service:        p.healthyProcessor.Service,
+		PaymentRequest: paymentRequest,
+		Service:        currentProcessor.Service, // Use captured processor
 	}
 
 	err = p.Store.StorePayment(context.Background(), processedPayment)
