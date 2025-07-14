@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"rinha-backend-arthur/internal/distributor"
+	"rinha-backend-arthur/internal/health"
 	"rinha-backend-arthur/internal/models"
 	"rinha-backend-arthur/internal/store"
 	"time"
@@ -34,7 +35,9 @@ func CreateRouter(mux *http.ServeMux, config Config) {
 		RedisClient: redisClient,
 	}
 
-	newProcessor := distributor.NewPaymentProcessor(config.Workers, store)
+	healthCheckService := health.NewHealthCheckService(store)
+
+	newProcessor := distributor.NewPaymentProcessor(config.Workers, store, healthCheckService)
 	handler := &Handler{paymentProcessor: newProcessor}
 
 	mux.HandleFunc("POST /payments", handler.HandlePayments)

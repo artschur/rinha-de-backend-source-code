@@ -7,32 +7,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"rinha-backend-arthur/internal/health"
 	"rinha-backend-arthur/internal/models"
 	"rinha-backend-arthur/internal/store"
 	"time"
 )
 
-type PaymentProcessorDestination struct {
-	URL        string
-	HEALTH_URL string // health check URL
-	Service    string // default or fallback
-}
-
-var (
-	MAIN_PAYMENT_PROCESSOR_URL      = "http://payment-processor-default:8080/payments"
-	SECONDARY_PAYMENT_PROCESSOR_URL = "http://payment-processor-fallback:8080/payments"
-	MAIN_HEALTH_URL                 = "http://payment-processor-default:8080/payments/service-health"
-	SECONDARY_HEALTH_URL            = "http://payment-processor-fallback:8080/payments/service-health"
-)
-
 type PaymentProcessor struct {
-	Store            *store.Store
-	workers          int
-	client           *http.Client
-	healthyProcessor *PaymentProcessorDestination
+	Store   *store.Store
+	workers int
+	client  *http.Client
+	health  *health.HealthCheckService
 }
 
-func NewPaymentProcessor(workers int, store *store.Store) *PaymentProcessor {
+func NewPaymentProcessor(workers int, store *store.Store, healthCheckServie *health.HealthCheckService) *PaymentProcessor {
 	httpClient := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
@@ -47,17 +35,13 @@ func NewPaymentProcessor(workers int, store *store.Store) *PaymentProcessor {
 		workers: workers,
 		Store:   store,
 		client:  httpClient,
-		// Always start with main processor
-		healthyProcessor: &PaymentProcessorDestination{
-			URL:     MAIN_PAYMENT_PROCESSOR_URL,
-			Service: "default",
-		},
+		health:  healthCheckServie,
 	}
 
 	// Start health check with ticker
-	go processor.startHealthCheckLoop()
+	go processor.health.StartHealthCheckLoop()
 
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go processor.distributePayment(i)
 	}
 
@@ -98,15 +82,14 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 		} else {
 			// Successfully processed - remove from processing queue
 			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
-			fmt.Printf("[Worker %d] Payment processed successfully: %s\n", workerNum, payment.CorrelationId)
 		}
 
 	}
 }
 
 func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest) error {
-	// Capture the processor at the START to avoid mid-flight changes
-	currentProcessor := p.healthyProcessor
+	// evita que o health checker mude no meio
+	currentProcessor := p.health.HealthyProcessor
 	if currentProcessor == nil {
 		return fmt.Errorf("no healthy processor available")
 	}
@@ -139,157 +122,4 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 	}
 
 	return nil
-}
-
-func (p *PaymentProcessor) isHealthy(url string) bool {
-
-	resp, err := p.client.Get(url)
-	if err != nil {
-		log.Printf("Health check request failed for %s: %v", url, err)
-		return false
-	}
-	defer resp.Body.Close()
-
-	var healthCheckResponse models.HealthCheckResponse
-	err = json.NewDecoder(resp.Body).Decode(&healthCheckResponse)
-	if err != nil {
-		log.Printf("Failed to decode health response from %s: %v", url, err)
-		return false
-	}
-
-	if healthCheckResponse.Failing {
-		return false
-	}
-
-	return true
-}
-
-func (p *PaymentProcessor) startHealthCheckLoop() {
-	ticker := time.NewTicker(6 * time.Second) // Slightly longer than rate limit
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			// Try to acquire lock for health check
-			if p.acquireHealthCheckLock() {
-				log.Printf("🔐 Acquired health check lock, performing health checks...")
-				p.updateHealthyProcessorWithRedis()
-				p.releaseHealthCheckLock()
-			} else {
-				log.Printf("📖 Another replica is doing health checks, reading status from Redis...")
-				p.readHealthStatusFromRedis()
-			}
-		}
-	}
-}
-
-func (p *PaymentProcessor) acquireHealthCheckLock() bool {
-	ctx := context.Background()
-	// Try to set lock with 10 second expiration (in case process crashes)
-	result := p.Store.RedisClient.SetNX(ctx, "health_check_lock", "locked", 10*time.Second)
-	acquired := result.Val()
-	if acquired {
-		log.Printf("✅ Health check lock acquired")
-	}
-	return acquired
-}
-
-func (p *PaymentProcessor) releaseHealthCheckLock() {
-	ctx := context.Background()
-	p.Store.RedisClient.Del(ctx, "health_check_lock")
-	log.Printf("🔓 Health check lock released")
-}
-
-func (p *PaymentProcessor) updateHealthyProcessorWithRedis() {
-	log.Printf("=== Starting health check cycle ===")
-
-	// Check main processor first
-	mainHealthy := p.isHealthy(MAIN_HEALTH_URL)
-	log.Printf("Main processor health: %v", mainHealthy)
-
-	if mainHealthy {
-		newProcessor := &PaymentProcessorDestination{
-			URL:     MAIN_PAYMENT_PROCESSOR_URL,
-			Service: "default",
-		}
-		if p.healthyProcessor.Service != "default" {
-			log.Printf("🔄 Switching to main processor (default)")
-		}
-		p.healthyProcessor = newProcessor
-		p.storeHealthStatusInRedis("default")
-		return
-	}
-
-	// Check fallback processor
-	fallbackHealthy := p.isHealthy(SECONDARY_HEALTH_URL)
-	log.Printf("Fallback processor health: %v", fallbackHealthy)
-
-	if fallbackHealthy {
-		newProcessor := &PaymentProcessorDestination{
-			URL:     SECONDARY_PAYMENT_PROCESSOR_URL,
-			Service: "fallback",
-		}
-		if p.healthyProcessor.Service != "fallback" {
-			log.Printf("🔄 Switching to fallback processor")
-		}
-		p.healthyProcessor = newProcessor
-		p.storeHealthStatusInRedis("fallback")
-		return
-	}
-
-	// Both are down, keep current but update timestamp
-	log.Printf("⚠️  WARNING: Both processors are down, keeping current: %s", p.healthyProcessor.Service)
-	p.storeHealthStatusInRedis(p.healthyProcessor.Service)
-	log.Printf("=== End health check cycle ===")
-}
-
-func (p *PaymentProcessor) storeHealthStatusInRedis(service string) {
-	ctx := context.Background()
-	healthData := map[string]interface{}{
-		"service":   service,
-		"timestamp": time.Now().Unix(),
-	}
-
-	err := p.Store.RedisClient.HMSet(ctx, "healthy_processor_status", healthData).Err()
-	if err != nil {
-		log.Printf("❌ Failed to store health status in Redis: %v", err)
-	} else {
-		log.Printf("💾 Stored health status in Redis: %s", service)
-	}
-}
-
-func (p *PaymentProcessor) readHealthStatusFromRedis() {
-	ctx := context.Background()
-	result := p.Store.RedisClient.HGetAll(ctx, "healthy_processor_status")
-
-	healthData, err := result.Result()
-	if err != nil {
-		log.Printf("❌ Failed to read health status from Redis: %v", err)
-		return
-	}
-
-	if len(healthData) == 0 {
-		log.Printf("📖 No health status found in Redis, keeping current: %s", p.healthyProcessor.Service)
-		return
-	}
-
-	service := healthData["service"]
-	timestamp := healthData["timestamp"]
-
-	log.Printf("📖 Read health status from Redis: service=%s, timestamp=%s", service, timestamp)
-
-	if service == "default" && p.healthyProcessor.Service != "default" {
-		log.Printf("🔄 Updating to main processor based on Redis status")
-		p.healthyProcessor = &PaymentProcessorDestination{
-			URL:     MAIN_PAYMENT_PROCESSOR_URL,
-			Service: "default",
-		}
-	} else if service == "fallback" && p.healthyProcessor.Service != "fallback" {
-		log.Printf("🔄 Updating to fallback processor based on Redis status")
-		p.healthyProcessor = &PaymentProcessorDestination{
-			URL:     SECONDARY_PAYMENT_PROCESSOR_URL,
-			Service: "fallback",
-		}
-	}
 }
