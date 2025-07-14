@@ -62,6 +62,7 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	paymentRequest.Amount = math.Round(paymentRequest.Amount*100) / 100
 	paymentRequest.RequestedAt = time.Now().UTC()
 
 	payload, err := json.Marshal(paymentRequest)
