@@ -2,9 +2,9 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"rinha-backend-arthur/internal/models"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,15 +16,20 @@ type Store struct {
 }
 
 func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error {
-	paymentKey := fmt.Sprintf("payment:%s", payment.CorrelationId)
+	// Use a single hash key for all payments like the reference implementation
 	paymentData := map[string]any{
-		"correlationId": payment.CorrelationId.String(), // Convert UUID to string
-		"amount":        payment.Amount,
-		"service":       payment.Service,
-		"timestamp":     payment.RequestedAt.Unix(),
+		"correlationId":    payment.CorrelationId.String(),
+		"amount":           payment.Amount,
+		"paymentProcessor": payment.Service,
+		"requestedAt":      payment.RequestedAt.Format(time.RFC3339Nano),
 	}
 
-	err := s.RedisClient.HMSet(ctx, paymentKey, paymentData).Err()
+	paymentJSON, err := json.Marshal(paymentData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payment data: %w", err)
+	}
+
+	err = s.RedisClient.HSet(ctx, "payments", payment.CorrelationId.String(), paymentJSON).Err()
 	if err != nil {
 		return fmt.Errorf("failed to store payment: %w", err)
 	}
@@ -33,58 +38,26 @@ func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error 
 }
 
 func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
-	keys, err := s.RedisClient.Keys(ctx, "payment:*").Result()
+	// Get all payments from the single hash
+	paymentsData, err := s.RedisClient.HGetAll(ctx, "payments").Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve payment keys: %w", err)
+		return nil, fmt.Errorf("failed to retrieve payments: %w", err)
 	}
 
-	if len(keys) == 0 {
+	if len(paymentsData) == 0 {
 		return []models.Payment{}, nil
 	}
 
-	var allPayments []models.Payment
-	batchSize := 500 // Process in smaller batches
-
-	for i := 0; i < len(keys); i += batchSize {
-		end := i + batchSize
-		if end > len(keys) {
-			end = len(keys)
-		}
-
-		batchPayments, err := s.getPaymentsBatch(ctx, keys[i:end])
-		if err != nil {
-			return nil, err
-		}
-
-		allPayments = append(allPayments, batchPayments...)
-	}
-
-	return allPayments, nil
-}
-
-func (s *Store) getPaymentsBatch(ctx context.Context, keys []string) ([]models.Payment, error) {
-	pipe := s.RedisClient.Pipeline()
-	cmds := make([]*redis.MapStringStringCmd, len(keys))
-
-	for i, key := range keys {
-		cmds[i] = pipe.HGetAll(ctx, key)
-	}
-
-	_, err := pipe.Exec(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	var payments []models.Payment
-	for _, cmd := range cmds {
-		data, err := cmd.Result()
-		if err != nil || len(data) == 0 {
-			continue
+	for _, paymentDataJSON := range paymentsData {
+		var paymentData map[string]interface{}
+		if err := json.Unmarshal([]byte(paymentDataJSON), &paymentData); err != nil {
+			continue // Skip malformed data
 		}
 
-		payment, err := s.parsePaymentFromRedisData(data)
+		payment, err := s.parsePaymentFromData(paymentData)
 		if err != nil {
-			continue
+			continue // Skip invalid data
 		}
 
 		payments = append(payments, payment)
@@ -93,27 +66,42 @@ func (s *Store) getPaymentsBatch(ctx context.Context, keys []string) ([]models.P
 	return payments, nil
 }
 
-func (s *Store) parsePaymentFromRedisData(data map[string]string) (models.Payment, error) {
-	correlationId, _ := data["correlationId"]
-	amount, _ := data["amount"]
-	service, _ := data["service"]
-	timestamp, _ := data["timestamp"]
-
-	amtFloat, err := strconv.ParseFloat(amount, 64)
-	if err != nil {
-		return models.Payment{}, fmt.Errorf("failed to parse amount: %w", err)
+func (s *Store) parsePaymentFromData(data map[string]interface{}) (models.Payment, error) {
+	correlationIdStr, ok := data["correlationId"].(string)
+	if !ok {
+		return models.Payment{}, fmt.Errorf("invalid correlationId")
 	}
 
-	timestampParsed, err := strconv.ParseInt(timestamp, 10, 64)
+	amount, ok := data["amount"].(float64)
+	if !ok {
+		return models.Payment{}, fmt.Errorf("invalid amount")
+	}
+
+	service, ok := data["paymentProcessor"].(string)
+	if !ok {
+		return models.Payment{}, fmt.Errorf("invalid paymentProcessor")
+	}
+
+	requestedAtStr, ok := data["requestedAt"].(string)
+	if !ok {
+		return models.Payment{}, fmt.Errorf("invalid requestedAt")
+	}
+
+	correlationId, err := uuid.Parse(correlationIdStr)
 	if err != nil {
-		return models.Payment{}, fmt.Errorf("failed to parse timestamp: %w", err)
+		return models.Payment{}, fmt.Errorf("failed to parse correlationId: %w", err)
+	}
+
+	requestedAt, err := time.Parse(time.RFC3339Nano, requestedAtStr)
+	if err != nil {
+		return models.Payment{}, fmt.Errorf("failed to parse requestedAt: %w", err)
 	}
 
 	payment := models.Payment{
 		PaymentRequest: models.PaymentRequest{
-			CorrelationId: uuid.MustParse(correlationId),
-			Amount:        amtFloat,
-			RequestedAt:   time.Unix(timestampParsed, 0).UTC(),
+			CorrelationId: correlationId,
+			Amount:        amount,
+			RequestedAt:   requestedAt.UTC(),
 		},
 		Service: service,
 	}
@@ -122,16 +110,15 @@ func (s *Store) parsePaymentFromRedisData(data map[string]string) (models.Paymen
 }
 
 func (s *Store) PurgeAllData(ctx context.Context) error {
-	keys, err := s.RedisClient.Keys(ctx, "payment:*").Result()
+	err := s.RedisClient.Del(ctx, "payments").Err()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve payment keys: %w", err)
+		return fmt.Errorf("failed to delete payments: %w", err)
 	}
-	if len(keys) == 0 {
-		return nil // No keys to delete
+
+	keys, err := s.RedisClient.Keys(ctx, "payments:processing:*").Result()
+	if err == nil && len(keys) > 0 {
+		s.RedisClient.Del(ctx, keys...)
 	}
-	_, err = s.RedisClient.Del(ctx, keys...).Result()
-	if err != nil {
-		return fmt.Errorf("failed to delete payment keys: %w", err)
-	}
+
 	return nil
 }

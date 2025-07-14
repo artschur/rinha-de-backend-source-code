@@ -71,27 +71,34 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 	}
 
 	ctx := context.Background()
+	processingQueue := fmt.Sprintf("payments:processing:%d", workerNum)
+
 	for {
-		result, err := p.Store.RedisClient.RPop(ctx, "payments:queue").Result()
+		result, err := p.Store.RedisClient.RPopLPush(ctx, "payments:queue", processingQueue).Result()
 		if err != nil {
 			if err.Error() == "redis: nil" {
-				// no payments in the queue, wait before checking again
 				time.Sleep(1 * time.Second)
 				continue
 			}
-			// Handle other errors (e.g., connection issues)
+			log.Printf("[Worker %d] Redis error: %v", workerNum, err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		var payment models.PaymentRequest
 		if err := json.Unmarshal([]byte(result), &payment); err != nil {
 			fmt.Printf("[Worker %s-%d] Failed to unmarshal payment: %v\n", workerNum, workerNum, err)
+			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
 			continue
 		}
 
 		if err := p.ProcessPayments(payment); err != nil {
 			fmt.Printf("[Worker %s] Failed to process payment: %v\n", workerNum, err)
 			p.Store.RedisClient.LPush(ctx, "payments:queue", result) // Requeue the payment
+		} else {
+			// Successfully processed - remove from processing queue
+			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
+			fmt.Printf("[Worker %d] Payment processed successfully: %s\n", workerNum, payment.CorrelationId)
 		}
 
 	}
@@ -119,7 +126,6 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 		return fmt.Errorf("error sending to payment processor %s: status %d", currentProcessor.Service, resp.StatusCode)
 	}
 
-	// Use the SAME processor reference that we sent to
 	processedPayment := models.Payment{
 		PaymentRequest: paymentRequest,
 		Service:        currentProcessor.Service, // Use captured processor
@@ -127,7 +133,9 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 
 	err = p.Store.StorePayment(context.Background(), processedPayment)
 	if err != nil {
-		return fmt.Errorf("failed to save payment in redis: %w", err)
+		// This is critical - payment was accepted by processor but we failed to save
+		// Log as error but don't return error to avoid reprocessing
+		log.Printf("CRITICAL: Payment accepted by processor but failed to save in Redis: %v", err)
 	}
 
 	return nil
