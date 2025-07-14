@@ -44,22 +44,18 @@ func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {
 		return []models.Payment{}, nil
 	}
 
-	// Use pipeline for batch operations
 	pipe := s.RedisClient.Pipeline()
 
-	// Queue all HGETALL commands
 	cmds := make([]*redis.MapStringStringCmd, len(keys))
 	for i, key := range keys {
 		cmds[i] = pipe.HGetAll(ctx, key)
 	}
 
-	// Execute all commands at once
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute pipeline: %w", err)
 	}
 
-	// Process results
 	var payments []models.Payment
 	for i, cmd := range cmds {
 		data, err := cmd.Result()
