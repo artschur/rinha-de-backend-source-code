@@ -1,0 +1,10 @@
+{
+  "name": "William Rodrigues",
+  "social": ["https://github.com/willy-r", "https://www.linkedin.com/in/willsilvarodrigues/", "https://x.com/lliw_r"],
+  "source-code-repo": "https://github.com/willy-r/BUNrinha-2025",
+  "langs": ["Node.js", "Bun"],
+  "storages": ["Redis"],
+  "messaging": [],
+  "load-balancers": [],
+  "other-technologies": []
+}

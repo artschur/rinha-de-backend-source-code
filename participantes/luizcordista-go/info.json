@@ -1,0 +1,11 @@
+{
+  "name": "Luiz Cordista",
+  "social": [
+    "https://x.com/LuozOG",
+    "https://www.linkedin.com/in/luizcordista"
+  ],
+  "source-code-repo": "https://github.com/LuizCordista/rinha-backend-2025",
+  "langs": ["go"],
+  "storages": ["redis"],
+  "load-balancers": ["nginx"]
+}

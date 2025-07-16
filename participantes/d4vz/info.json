@@ -1,0 +1,13 @@
+{
+  "name": "Davi Orlandi",
+  "social": [
+    "https://www.linkedin.com/in/davi-orlandi-b1023a238/",
+    "https://x.com/dvorlandi",
+    "https://dev.to/dvorlandi"
+  ],
+  "source-code-repo": "https://github.com/d4vz/golang-rinha-backend-2025",
+  "langs": ["go"],
+  "storages": ["postgresql", "redis"],
+  "messaging": ["redis"],
+  "load-balancers": ["nginx"]
+}

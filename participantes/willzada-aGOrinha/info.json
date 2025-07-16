@@ -1,0 +1,10 @@
+{
+  "name": "William Rodrigues",
+  "social": ["https://github.com/willy-r", "https://www.linkedin.com/in/willsilvarodrigues/", "https://x.com/lliw_r"],
+  "source-code-repo": "https://github.com/willy-r/aGOrinha-2025",
+  "langs": ["go"],
+  "storages": ["memory", "file"],
+  "messaging": [],
+  "load-balancers": ["nginx"],
+  "other-technologies": ["fasthttp", "flock"]
+}

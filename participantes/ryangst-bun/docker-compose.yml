@@ -1,0 +1,140 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.api.address=:9999"
+      - "--log.level=WARN"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9999:9999"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ryangst
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: "42MB"
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ryangst
+    command: redis-server --appendonly no
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: "20MB"
+
+  mongodb:
+    image: mongo:7.0-jammy
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - ryangst
+    environment:
+      - MONGO_INITDB_DATABASE=rinha-ryangst
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "110MB"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    container_name: api-rinha
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - ryangst
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-router.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.api-router.entrypoints=api"
+      - "traefik.http.services.api-service.loadbalancer.server.port=9999"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.35"
+          memory: "60MB"
+
+  api-2:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: api-rinha-2
+    env_file: .env
+    environment:
+      - API_PORT=9998
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - ryangst
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-router.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.api-router.entrypoints=api"
+      - "traefik.http.services.api-service.loadbalancer.server.port=9998"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.35"
+          memory: "60MB"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env
+    container_name: worker-rinha
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - ryangst
+      - payment-processor
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/rinha-ryangst}
+      - PAYMENT_PROCESSOR_URL_DEFAULT=${PAYMENT_PROCESSOR_URL_DEFAULT:-http://payment-processor-default:8080}
+      - PAYMENT_PROCESSOR_URL_FALLBACK=${PAYMENT_PROCESSOR_URL_FALLBACK:-http://payment-processor-fallback:8080}
+      - CONCURRENCY=${CONCURRENCY:-10}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.35"
+          memory: "58MB"
+
+networks:
+  ryangst:
+    driver: bridge
+  payment-processor:
+    external: true
+
+volumes:
+  mongodb_data:
+  redis_data:

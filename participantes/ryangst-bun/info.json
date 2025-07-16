@@ -1,0 +1,12 @@
+{
+  "name": "Ryangst",
+  "social": [
+    "https://x.com/ryangst_",
+    "https://www.linkedin.com/in/ryangst/",
+    "https://blog.ryanmac.dev/"
+  ],
+  "source-code-repo": "https://github.com/RyanGst/rinha-de-backend-2025-code",
+  "langs": ["ts", "bun"],
+  "storages": ["redis", "mongo"],
+  "load-balancers": ["traefik"]
+}

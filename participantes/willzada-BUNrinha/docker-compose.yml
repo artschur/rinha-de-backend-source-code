@@ -1,0 +1,82 @@
+services:
+  app1:
+    image: willrodrigues/bunrinha-2025
+    command: bun cmd/server/main.js
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PROCESSOR_DEFAULT=http://payment-processor-default:8080
+      - PROCESSOR_FALLBACK=http://payment-processor-fallback:8080
+    ports:
+      - "9999:9999"
+    networks:
+      - backend
+      - payment-processor
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: "90MB"
+
+  app2:
+    image: willrodrigues/bunrinha-2025
+    command: bun cmd/server/main.js
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PROCESSOR_DEFAULT=http://payment-processor-default:8080
+      - PROCESSOR_FALLBACK=http://payment-processor-fallback:8080
+    networks:
+      - backend
+      - payment-processor
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: "90MB"
+
+  worker1:
+    image: willrodrigues/bunrinha-2025
+    command: bun cmd/worker/worker.js
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PROCESSOR_DEFAULT=http://payment-processor-default:8080
+      - PROCESSOR_FALLBACK=http://payment-processor-fallback:8080
+    networks:
+      - backend
+      - payment-processor
+    deploy:
+      resources:
+        limits:
+          cpus: "0.35"
+          memory: "80MB"
+
+  worker2:
+    image: willrodrigues/bunrinha-2025
+    command: bun cmd/worker/worker.js
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PROCESSOR_DEFAULT=http://payment-processor-default:8080
+      - PROCESSOR_FALLBACK=http://payment-processor-fallback:8080
+    networks:
+      - backend
+      - payment-processor
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: "70MB"
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: "20MB"
+
+networks:
+  backend:
+    driver: bridge
+  payment-processor:
+    external: true
