@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"rinha-backend-arthur/internal/health"
 	"rinha-backend-arthur/internal/models"
@@ -51,7 +50,7 @@ func NewPaymentProcessor(workers int, store *store.Store, healthCheckServie *hea
 func (p *PaymentProcessor) distributePayment(workerNum int) {
 
 	if p.Store == nil || p.Store.RedisClient == nil {
-		log.Fatal("PaymentProcessor store or RedisClient is nil!")
+		// log.Fatal("PaymentProcessor store or RedisClient is nil!")
 	}
 
 	ctx := context.Background()
@@ -64,7 +63,7 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 				time.Sleep(1 * time.Second)
 				continue
 			}
-			log.Printf("[Worker %d] Redis error: %v", workerNum, err)
+			// log.Printf("[Worker %d] Redis error: %v", workerNum, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -118,7 +117,7 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 	if err != nil {
 		// This is critical - payment was accepted by processor but we failed to save
 		// Log as error but don't return error to avoid reprocessing
-		log.Printf("CRITICAL: Payment accepted by processor but failed to save in Redis: %v", err)
+		// log.Printf("CRITICAL: Payment accepted by processor but failed to save in Redis: %v", err)
 	}
 
 	return nil

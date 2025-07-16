@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"rinha-backend-arthur/internal/distributor"
@@ -28,7 +27,7 @@ func CreateRouter(mux *http.ServeMux, config Config) {
 	defer cancel()
 
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		log.Printf("Warning: Redis connection failed: %v", err)
+		// log.Printf("Warning: Redis connection failed: %v", err)
 	}
 
 	store := &store.Store{
@@ -69,13 +68,13 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := json.Marshal(paymentRequest)
 	if err != nil {
-		log.Printf("Error marshalling payment request: %v", err)
+		// log.Printf("Error marshalling payment request: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
 		return
 	}
 
 	if err := h.paymentProcessor.Store.RedisClient.LPush(r.Context(), "payments:queue", payload).Err(); err != nil {
-		log.Printf("Error pushing payment to Redis: %v", err)
+		// log.Printf("Error pushing payment to Redis: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
 		return
 	}
@@ -103,7 +102,7 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 	// Always get all payments - let PaymentsToSummary handle filtering
 	payments, err := h.paymentProcessor.Store.GetAllPayments(r.Context())
 	if err != nil {
-		log.Printf("Error getting payments: %v", err)
+		// log.Printf("Error getting payments: %v", err)
 		http.Error(w, "Failed to retrieve payments", http.StatusInternalServerError)
 		return
 	}
@@ -114,7 +113,7 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(summary); err != nil {
-		log.Printf("Error encoding summary response: %v", err)
+		// log.Printf("Error encoding summary response: %v", err)
 		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
 	}
 }
@@ -125,7 +124,7 @@ func (h *Handler) HandlePurgePayments(w http.ResponseWriter, r *http.Request) {
 	// Delete all payment summary data from Redis
 	err := h.paymentProcessor.Store.PurgeAllData(ctx)
 	if err != nil {
-		log.Printf("Error purging payment data: %v", err)
+		// log.Printf("Error purging payment data: %v", err)
 		http.Error(w, "Failed to purge payment data", http.StatusInternalServerError)
 		return
 	}
@@ -139,6 +138,6 @@ func (h *Handler) HandlePurgePayments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding purge response: %v", err)
+		// log.Printf("Error encoding purge response: %v", err)
 	}
 }
