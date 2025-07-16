@@ -71,13 +71,13 @@ func (p *PaymentProcessor) distributePayment(workerNum int) {
 
 		var payment models.PaymentRequest
 		if err := json.Unmarshal([]byte(result), &payment); err != nil {
-			fmt.Printf("[Worker %s-%d] Failed to unmarshal payment: %v\n", workerNum, workerNum, err)
+			fmt.Printf("[Worker %v-%d] Failed to unmarshal payment: %v\n", workerNum, workerNum, err)
 			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
 			continue
 		}
 
 		if err := p.ProcessPayments(payment); err != nil {
-			fmt.Printf("[Worker %s] Failed to process payment: %v\n", workerNum, err)
+			fmt.Printf("[Worker %v] Failed to process payment: %v\n", workerNum, err)
 			p.Store.RedisClient.LPush(ctx, "payments:queue", result) // Requeue the payment
 		} else {
 			// Successfully processed - remove from processing queue
