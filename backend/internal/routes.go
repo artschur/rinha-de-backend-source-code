@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 
 	"rinha-backend-arthur/internal/distributor"
@@ -49,22 +50,29 @@ type Handler struct {
 }
 
 func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
-	var paymentRequest models.PaymentRequest
-	if err := json.NewDecoder(r.Body).Decode(&paymentRequest); err != nil {
+	var incoming struct {
+		CorrelationId uuid.UUID `json:"correlationId"`
+		Amount        float64   `json:"amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if paymentRequest.Amount <= 0 {
+	if incoming.Amount <= 0 {
 		http.Error(w, "Amount must be greater than zero", http.StatusBadRequest)
 		return
 	}
-	if paymentRequest.CorrelationId == uuid.Nil {
+	if incoming.CorrelationId == uuid.Nil {
 		http.Error(w, "CorrelationId is required", http.StatusBadRequest)
 		return
 	}
 
-	paymentRequest.RequestedAt = time.Now().UTC()
+	paymentRequest := models.PaymentRequest{
+		CorrelationId: incoming.CorrelationId,
+		Amount:        int64(math.Round(incoming.Amount * 100)),
+		RequestedAt:   time.Now().UTC(),
+	}
 
 	payload, err := json.Marshal(paymentRequest)
 	if err != nil {
@@ -107,12 +115,22 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// PaymentsToSummary handles all cases: no filter, from only, to only, both
 	summary := PaymentsToSummary(payments, from, to)
+
+	response := models.PaymentSummaryResponse{
+		Default: models.SummaryResponse{
+			TotalRequests: summary.Default.TotalRequests,
+			TotalAmount:   float64(summary.Default.TotalAmount) / 100.0,
+		},
+		Fallback: models.SummaryResponse{
+			TotalRequests: summary.Fallback.TotalRequests,
+			TotalAmount:   float64(summary.Fallback.TotalAmount) / 100.0,
+		},
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(summary); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		// log.Printf("Error encoding summary response: %v", err)
 		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"rinha-backend-arthur/internal/models"
 	"time"
 
@@ -72,9 +73,19 @@ func (s *Store) parsePaymentFromData(data map[string]interface{}) (models.Paymen
 		return models.Payment{}, fmt.Errorf("invalid correlationId")
 	}
 
-	amount, ok := data["amount"].(float64)
-	if !ok {
-		return models.Payment{}, fmt.Errorf("invalid amount")
+	var amount int64
+	switch amountVal := data["amount"].(type) {
+	case float64:
+		amount = int64(math.Round(amountVal)) // Convert existing float to int
+	case json.Number:
+		floatVal, _ := amountVal.Float64()
+		amount = int64(math.Round(floatVal))
+	case int64:
+		amount = amountVal
+	case int:
+		amount = int64(amountVal)
+	default:
+		return models.Payment{}, fmt.Errorf("invalid amount type: %T", data["amount"])
 	}
 
 	service, ok := data["paymentProcessor"].(string)

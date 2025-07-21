@@ -72,7 +72,8 @@ func PaymentsToSummary(payments []models.Payment, from, to time.Time) models.Pay
 		}
 	}
 
-	return buildSummary(validPayments)
+	summary := buildSummary(validPayments)
+	return summary
 }
 
 func ParseFlexibleTime(timeStr string) (time.Time, error) {

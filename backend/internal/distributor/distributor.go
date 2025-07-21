@@ -10,6 +10,8 @@ import (
 	"rinha-backend-arthur/internal/models"
 	"rinha-backend-arthur/internal/store"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type PaymentProcessor struct {
@@ -93,7 +95,17 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 		return fmt.Errorf("no healthy processor available")
 	}
 
-	requestBody, err := json.Marshal(paymentRequest)
+	paymentRequestForProcessor := struct {
+		CorrelationId uuid.UUID `json:"correlationId"`
+		Amount        float64   `json:"amount"`
+		RequestedAt   time.Time `json:"requestedAt"`
+	}{
+		CorrelationId: paymentRequest.CorrelationId,
+		Amount:        float64(paymentRequest.Amount) / 100.0,
+		RequestedAt:   paymentRequest.RequestedAt,
+	}
+
+	requestBody, err := json.Marshal(paymentRequestForProcessor)
 	if err != nil {
 		return err
 	}
