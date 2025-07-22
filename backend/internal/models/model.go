@@ -7,8 +7,8 @@ import (
 )
 
 type PaymentRequest struct {
-	CorrelationId uuid.UUID `json:"correlationId"`
 	Amount        int64     `json:"amount"`
+	CorrelationId uuid.UUID `json:"correlationId"`
 	RequestedAt   time.Time `json:"requestedAt"` // Add this field!
 }
 
@@ -28,8 +28,8 @@ type PaymentSummaryResponse struct {
 }
 
 type SummaryResponse struct {
-	TotalRequests int64   `json:"totalRequests"`
 	TotalAmount   float64 `json:"totalAmount"`
+	TotalRequests int64   `json:"totalRequests"`
 }
 
 type Summary struct {
@@ -38,6 +38,6 @@ type Summary struct {
 }
 
 type HealthCheckResponse struct {
-	Failing         bool   `json:"failing"`
 	MinResponseTime uint16 `json:"minResponseTime"`
+	Failing         bool   `json:"failing"`
 }

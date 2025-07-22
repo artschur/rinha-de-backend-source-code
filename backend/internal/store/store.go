@@ -17,25 +17,51 @@ type Store struct {
 }
 
 func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error {
-	// Use a single hash key for all payments like the reference implementation
 	paymentData := map[string]any{
 		"correlationId":    payment.CorrelationId.String(),
 		"amount":           payment.Amount,
 		"paymentProcessor": payment.Service,
 		"requestedAt":      payment.RequestedAt.Format(time.RFC3339Nano),
 	}
-
 	paymentJSON, err := json.Marshal(paymentData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payment data: %w", err)
 	}
-
-	err = s.RedisClient.HSet(ctx, "payments", payment.CorrelationId.String(), paymentJSON).Err()
+	// Use nanosecond precision for score
+	score := float64(payment.RequestedAt.UnixNano())
+	err = s.RedisClient.ZAdd(ctx, "payments", redis.Z{
+		Score:  score,
+		Member: paymentJSON,
+	}).Err()
 	if err != nil {
 		return fmt.Errorf("failed to store payment: %w", err)
 	}
-
 	return nil
+}
+
+func (s *Store) GetPaymentsByTime(ctx context.Context, from, to time.Time) ([]models.Payment, error) {
+	minScore := float64(from.UnixNano())
+	maxScore := float64(to.UnixNano())
+	results, err := s.RedisClient.ZRangeByScore(ctx, "payments", &redis.ZRangeBy{
+		Min: fmt.Sprintf("%f", minScore),
+		Max: fmt.Sprintf("%f", maxScore),
+	}).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payments: %w", err)
+	}
+	var payments []models.Payment
+	for _, paymentDataJSON := range results {
+		var paymentData map[string]interface{}
+		if err := json.Unmarshal([]byte(paymentDataJSON), &paymentData); err != nil {
+			continue // Skip malformed data
+		}
+		payment, err := s.parsePaymentFromData(paymentData)
+		if err != nil {
+			continue // Skip invalid data
+		}
+		payments = append(payments, payment)
+	}
+	return payments, nil
 }
 
 func (s *Store) GetAllPayments(ctx context.Context) ([]models.Payment, error) {

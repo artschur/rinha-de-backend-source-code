@@ -1,3 +1,4 @@
+# Rebalance your resources
 services:
   nginx:
     image: nginx:alpine
@@ -15,8 +16,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: '50MB'
+          cpus: '0.2' # Reduce from 0.5
+          memory: '50MB' # Reduce from 50MB
 
   backend-go-1:
     build: .
@@ -37,8 +38,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.75'
-          memory: '115MB'
+          cpus: '0.5'
+          memory: '100MB'
 
   backend-go-2:
     build: .
@@ -59,8 +60,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.75'
-          memory: '115MB'
+          cpus: '0.5' # Decrease slightly
+          memory: '100MB' # Increase slightly
 
   backend-go-redis:
     image: redis:7-alpine
@@ -71,8 +72,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.25'
-          memory: '70MB'
+          cpus: '0.3'
+          memory: '100MB'
 
 networks:
   backend:

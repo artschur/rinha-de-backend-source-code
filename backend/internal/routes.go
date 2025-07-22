@@ -76,7 +76,6 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := json.Marshal(paymentRequest)
 	if err != nil {
-		// log.Printf("Error marshalling payment request: %v", err)
 		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
 		return
 	}
@@ -87,14 +86,7 @@ func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	response := map[string]string{
-		"status":        "success",
-		"message":       "Payment request accepted",
-		"correlationId": paymentRequest.CorrelationId.String(),
-	}
-	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
@@ -107,10 +99,14 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Always get all payments - let PaymentsToSummary handle filtering
-	payments, err := h.paymentProcessor.Store.GetAllPayments(r.Context())
+	var payments []models.Payment
+	if !from.IsZero() && !to.IsZero() {
+		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(r.Context(), from, to)
+	} else {
+		// If no time range, get all payments
+		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(r.Context(), time.Unix(0, 0), time.Now().UTC())
+	}
 	if err != nil {
-		// log.Printf("Error getting payments: %v", err)
 		http.Error(w, "Failed to retrieve payments", http.StatusInternalServerError)
 		return
 	}
@@ -131,7 +127,6 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// log.Printf("Error encoding summary response: %v", err)
 		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
 	}
 }
