@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"os/signal"
@@ -9,17 +8,21 @@ import (
 	"time"
 
 	"rinha-backend-arthur/internal"
+
+	"github.com/fasthttp/router"
+	"github.com/valyala/fasthttp"
 )
 
 func main() {
 	config := internal.NewConfig()
 
-	mux := http.NewServeMux()
-	internal.CreateRouter(mux, *config)
+	// mux := http.NewServeMux()
 
-	server := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
+	r := router.New()
+	internal.CreateRouter(r, *config)
+
+	server := &fasthttp.Server{
+		Handler:      r.Handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -30,7 +33,7 @@ func main() {
 
 	go func() {
 		// log.Println("Server starting on :8080")
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(":8080"); err != nil && err != http.ErrServerClosed {
 			// log.Fatalf("Could not listen on :8080: %v\n", err)
 		}
 	}()
@@ -39,9 +42,9 @@ func main() {
 	// log.Println("Shutting down server...")
 
 	// Graceful shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	// shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// defer cancel()
+	if err := server.Shutdown(); err != nil {
 		// log.Fatalf("Server forced to shutdown: %v", err)
 	}
 

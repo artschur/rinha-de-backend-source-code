@@ -15,10 +15,11 @@ import (
 )
 
 type PaymentProcessor struct {
-	Store   *store.Store
-	workers int
-	client  *http.Client
-	health  *health.HealthCheckService
+	Store        *store.Store
+	workers      int
+	PaymentsChan chan []byte
+	client       *http.Client
+	health       *health.HealthCheckService
 }
 
 func NewPaymentProcessor(workers int, store *store.Store, healthCheckServie *health.HealthCheckService) *PaymentProcessor {
@@ -33,10 +34,11 @@ func NewPaymentProcessor(workers int, store *store.Store, healthCheckServie *hea
 	}
 
 	processor := &PaymentProcessor{
-		workers: workers,
-		Store:   store,
-		client:  httpClient,
-		health:  healthCheckServie,
+		workers:      workers,
+		Store:        store,
+		PaymentsChan: make(chan []byte, 2000), // Buffered channel for incoming payments
+		client:       httpClient,
+		health:       healthCheckServie,
 	}
 
 	// Start health check with ticker
@@ -51,40 +53,31 @@ func NewPaymentProcessor(workers int, store *store.Store, healthCheckServie *hea
 
 func (p *PaymentProcessor) distributePayment(workerNum int) {
 
-	if p.Store == nil || p.Store.RedisClient == nil {
-		// log.Fatal("PaymentProcessor store or RedisClient is nil!")
-	}
+	// ctx := context.Background()
 
-	ctx := context.Background()
-	processingQueue := fmt.Sprintf("payments:processing:%d", workerNum)
+	for payment := range p.PaymentsChan {
 
-	for {
-		result, err := p.Store.RedisClient.RPopLPush(ctx, "payments:queue", processingQueue).Result()
-		if err != nil {
-			if err.Error() == "redis: nil" {
-				time.Sleep(1 * time.Second)
-				continue
+		var incoming struct {
+			CorrelationId uuid.UUID `json:"correlationId"`
+			Amount        float64   `json:"amount"`
+		}
+
+		if err := json.Unmarshal(payment, &incoming); err != nil {
+
+			payment := models.PaymentRequest{
+				CorrelationId: incoming.CorrelationId,
+				Amount:        int64(incoming.Amount * 100), // Convert to cents
+				RequestedAt:   time.Now().UTC(),
 			}
-			// log.Printf("[Worker %d] Redis error: %v", workerNum, err)
-			time.Sleep(1 * time.Second)
-			continue
-		}
 
-		var payment models.PaymentRequest
-		if err := json.Unmarshal([]byte(result), &payment); err != nil {
-			fmt.Printf("[Worker %v-%d] Failed to unmarshal payment: %v\n", workerNum, workerNum, err)
-			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
-			continue
+			if err := p.ProcessPayments(payment); err != nil {
+				fmt.Printf("[Worker %v] Failed to process payment: %v\n", workerNum, err)
+				// p.Store.RedisClient.LPush(ctx, "payments:queue", result) // Requeue the payment
+			} else {
+				// Successfully processed - remove from processing queue
+				// p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
+			}
 		}
-
-		if err := p.ProcessPayments(payment); err != nil {
-			fmt.Printf("[Worker %v] Failed to process payment: %v\n", workerNum, err)
-			p.Store.RedisClient.LPush(ctx, "payments:queue", result) // Requeue the payment
-		} else {
-			// Successfully processed - remove from processing queue
-			p.Store.RedisClient.LRem(ctx, processingQueue, 1, result)
-		}
-
 	}
 }
 

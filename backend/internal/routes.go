@@ -3,8 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"math"
-	"net/http"
 
 	"rinha-backend-arthur/internal/distributor"
 	"rinha-backend-arthur/internal/health"
@@ -12,11 +10,12 @@ import (
 	"rinha-backend-arthur/internal/store"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/fasthttp/router"
 	"github.com/redis/go-redis/v9"
+	"github.com/valyala/fasthttp"
 )
 
-func CreateRouter(mux *http.ServeMux, config Config) {
+func CreateRouter(router *router.Router, config Config) {
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     config.RedisURL,
@@ -40,74 +39,46 @@ func CreateRouter(mux *http.ServeMux, config Config) {
 	newProcessor := distributor.NewPaymentProcessor(config.Workers, store, healthCheckService)
 	handler := &Handler{paymentProcessor: newProcessor}
 
-	mux.HandleFunc("POST /payments", handler.HandlePayments)
-	mux.HandleFunc("GET /payments-summary", handler.HandlePaymentsSummary)
-	mux.HandleFunc("POST /purge-payments", handler.HandlePurgePayments)
+	router.POST("/payments", handler.HandlePayments)
+	router.GET("/payments-summary", handler.HandlePaymentsSummary)
+	router.POST("/purge-payments", handler.HandlePurgePayments)
 }
 
 type Handler struct {
 	paymentProcessor *distributor.PaymentProcessor
 }
 
-func (h *Handler) HandlePayments(w http.ResponseWriter, r *http.Request) {
-	var incoming struct {
-		CorrelationId uuid.UUID `json:"correlationId"`
-		Amount        float64   `json:"amount"`
+func (h *Handler) HandlePayments(ctx *fasthttp.RequestCtx) {
+	payload := append([]byte(nil), ctx.PostBody()...)
+	select {
+	case h.paymentProcessor.PaymentsChan <- payload:
+		ctx.SetStatusCode(fasthttp.StatusAccepted)
+	default:
+		ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
+		ctx.SetBodyString("Server busy")
 	}
-	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if incoming.Amount <= 0 {
-		http.Error(w, "Amount must be greater than zero", http.StatusBadRequest)
-		return
-	}
-	if incoming.CorrelationId == uuid.Nil {
-		http.Error(w, "CorrelationId is required", http.StatusBadRequest)
-		return
-	}
-
-	paymentRequest := models.PaymentRequest{
-		CorrelationId: incoming.CorrelationId,
-		Amount:        int64(math.Round(incoming.Amount * 100)),
-		RequestedAt:   time.Now().UTC(),
-	}
-
-	payload, err := json.Marshal(paymentRequest)
-	if err != nil {
-		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.paymentProcessor.Store.RedisClient.LPush(r.Context(), "payments:queue", payload).Err(); err != nil {
-		// log.Printf("Error pushing payment to Redis: %v", err)
-		http.Error(w, "Failed to process payment", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusAccepted)
 }
 
-func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
+func (h *Handler) HandlePaymentsSummary(ctx *fasthttp.RequestCtx) {
+	fromStr := string(ctx.QueryArgs().Peek("from"))
+	toStr := string(ctx.QueryArgs().Peek("to"))
 
 	from, to, err := parseTimeRange(fromStr, toStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		ctx.SetBodyString(err.Error())
 		return
 	}
 
 	var payments []models.Payment
 	if !from.IsZero() && !to.IsZero() {
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(r.Context(), from, to)
+		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, from, to)
 	} else {
-		// If no time range, get all payments
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(r.Context(), time.Unix(0, 0), time.Now().UTC())
+		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, time.Unix(0, 0), time.Now().UTC())
 	}
 	if err != nil {
-		http.Error(w, "Failed to retrieve payments", http.StatusInternalServerError)
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString("Failed to retrieve payments")
 		return
 	}
 
@@ -124,33 +95,35 @@ func (h *Handler) HandlePaymentsSummary(w http.ResponseWriter, r *http.Request) 
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode summary", http.StatusInternalServerError)
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	if data, err := json.Marshal(response); err == nil {
+		ctx.SetBody(data)
+	} else {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString("Failed to encode summary")
 	}
 }
-
-func (h *Handler) HandlePurgePayments(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// Delete all payment summary data from Redis
-	err := h.paymentProcessor.Store.PurgeAllData(ctx)
+func (h *Handler) HandlePurgePayments(ctx *fasthttp.RequestCtx) {
+	// Use context.Background() or create a context if needed
+	err := h.paymentProcessor.Store.PurgeAllData(context.Background())
 	if err != nil {
-		// log.Printf("Error purging payment data: %v", err)
-		http.Error(w, "Failed to purge payment data", http.StatusInternalServerError)
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString("Failed to purge payment data")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(fasthttp.StatusOK)
 
 	response := map[string]string{
 		"status":  "success",
 		"message": "Payment data purged successfully",
 	}
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// log.Printf("Error encoding purge response: %v", err)
+	if data, err := json.Marshal(response); err == nil {
+		ctx.SetBody(data)
+	} else {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 	}
 }
