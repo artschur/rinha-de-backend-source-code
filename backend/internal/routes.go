@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"rinha-backend-arthur/internal/distributor"
 	"rinha-backend-arthur/internal/health"
@@ -21,6 +22,7 @@ func CreateRouter(router *router.Router, config Config) {
 		Addr:     config.RedisURL,
 		Password: "",
 		DB:       0,
+		PoolSize: 50,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -50,13 +52,17 @@ type Handler struct {
 
 func (h *Handler) HandlePayments(ctx *fasthttp.RequestCtx) {
 	payload := append([]byte(nil), ctx.PostBody()...)
-	select {
-	case h.paymentProcessor.PaymentsChan <- payload:
-		ctx.SetStatusCode(fasthttp.StatusAccepted)
-	default:
-		ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
-		ctx.SetBodyString("Server busy")
+	start := time.Now()
+	err := h.paymentProcessor.Store.RedisClient.LPush(context.Background(), "payments:queue", payload).Err()
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString("Failed to enqueue payment")
+		return
 	}
+	duration := time.Since(start)
+	fmt.Println("Payment enqueued in", duration)
+
+	ctx.SetStatusCode(fasthttp.StatusAccepted)
 }
 
 func (h *Handler) HandlePaymentsSummary(ctx *fasthttp.RequestCtx) {

@@ -23,7 +23,7 @@ func NewConfig() *Config {
 
 	return &Config{
 		RedisURL: redisAddr,
-		Workers:  10,
+		Workers:  20,
 		Port:     8080,
 	}
 }
