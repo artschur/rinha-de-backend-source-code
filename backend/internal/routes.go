@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"rinha-backend-arthur/internal/distributor"
 	"rinha-backend-arthur/internal/health"
@@ -52,15 +51,12 @@ type Handler struct {
 
 func (h *Handler) HandlePayments(ctx *fasthttp.RequestCtx) {
 	payload := append([]byte(nil), ctx.PostBody()...)
-	start := time.Now()
 	err := h.paymentProcessor.Store.RedisClient.LPush(context.Background(), "payments:queue", payload).Err()
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetBodyString("Failed to enqueue payment")
 		return
 	}
-	duration := time.Since(start)
-	fmt.Println("Payment enqueued in", duration)
 
 	ctx.SetStatusCode(fasthttp.StatusAccepted)
 }
@@ -76,19 +72,17 @@ func (h *Handler) HandlePaymentsSummary(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var payments []models.Payment
+	var summary models.PaymentSummary
 	if !from.IsZero() && !to.IsZero() {
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, from, to)
+		summary, err = h.paymentProcessor.Store.GetPaymentSummaryByTimePipeline(ctx, from, to)
 	} else {
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, time.Unix(0, 0), time.Now().UTC())
+		summary, err = h.paymentProcessor.Store.GetPaymentSummaryByTimePipeline(ctx, time.Unix(0, 0), time.Unix(1<<63-1, 0))
 	}
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		ctx.SetBodyString("Failed to retrieve payments")
+		ctx.SetBodyString("Failed to retrieve payment summary")
 		return
 	}
-
-	summary := PaymentsToSummary(payments, from, to)
 
 	response := models.PaymentSummaryResponse{
 		Default: models.SummaryResponse{
