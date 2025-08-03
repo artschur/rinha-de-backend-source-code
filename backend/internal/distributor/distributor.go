@@ -116,6 +116,7 @@ func (p *PaymentProcessor) ProcessPayments(paymentRequest models.PaymentRequest)
 		return fmt.Errorf("failed to send payment request to processor %s: %w", currentProcessor.Service, err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("error sending to payment processor %s: status %d", currentProcessor.Service, resp.StatusCode)
 	}

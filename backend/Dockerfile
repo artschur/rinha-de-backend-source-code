@@ -10,12 +10,10 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build with optimizations for Intel i7-6700 (Skylake) - GOAMD64=v3
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v3 go build \
+# Build with optimizations for smaller binary
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
-    -gcflags="-B" \
     -a -installsuffix cgo \
-    -tags netgo,osusergo \
     -o main .
 
 # Final stage - minimal image

@@ -1,8 +1,8 @@
-import { textSummary } from "https://jslib.k6.io/k6-summary/0.1.0/index.js";
-import { uuidv4 } from "https://jslib.k6.io/k6-utils/1.4.0/index.js";
-import { sleep } from "k6";
-import exec from "k6/execution";
-import { Counter } from "k6/metrics";
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
+import { sleep } from 'k6';
+import exec from 'k6/execution';
+import { Counter } from 'k6/metrics';
 import {
   token,
   setPPToken,
@@ -13,15 +13,15 @@ import {
   resetBackendDatabase,
   getBackendPaymentsSummary,
   requestBackendPayment,
-} from "./requests.js";
+} from './requests.js';
 
 // https://mikemcl.github.io/big.js/
-import Big from "https://cdn.jsdelivr.net/npm/big.js@7.0.1/big.min.js";
+import Big from 'https://cdn.jsdelivr.net/npm/big.js@7.0.1/big.min.js';
 
 const MAX_REQUESTS = __ENV.MAX_REQUESTS ?? 500;
 
 export const options = {
-  summaryTrendStats: ["p(99)", "count"],
+  summaryTrendStats: ['p(99)', 'count'],
   thresholds: {
     //http_req_failed: [{ threshold: "rate < 0.01", abortOnFail: false }],
     //payments_inconsistency: ["count == 0"]
@@ -30,118 +30,118 @@ export const options = {
   },
   scenarios: {
     payments: {
-      exec: "payments",
-      executor: "ramping-vus",
+      exec: 'payments',
+      executor: 'ramping-vus',
       startVUs: 1,
-      gracefulRampDown: "0s",
-      stages: [{ target: MAX_REQUESTS, duration: "60s" }],
+      gracefulRampDown: '0s',
+      stages: [{ target: MAX_REQUESTS, duration: '60s' }],
     },
     payments_consistency: {
-      exec: "checkPaymentsConsistency",
-      executor: "constant-vus",
+      exec: 'checkPaymentsConsistency',
+      executor: 'constant-vus',
       //startTime: "5s",
-      duration: "60s",
-      vus: "1",
+      duration: '60s',
+      vus: '1',
     },
     stage_00: {
-      exec: "define_stage",
-      startTime: "1s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '1s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "0",
-        defaultFailure: "false",
-        fallbackDelay: "0",
-        fallbackFailure: "false",
+        defaultDelay: '0',
+        defaultFailure: 'false',
+        fallbackDelay: '0',
+        fallbackFailure: 'false',
       },
     },
     stage_01: {
-      exec: "define_stage",
-      startTime: "10s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '10s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "100",
-        defaultFailure: "false",
-        fallbackDelay: "0",
-        fallbackFailure: "false",
+        defaultDelay: '100',
+        defaultFailure: 'false',
+        fallbackDelay: '0',
+        fallbackFailure: 'false',
       },
     },
     stage_02: {
-      exec: "define_stage",
-      startTime: "20s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '20s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "100",
-        defaultFailure: "true",
-        fallbackDelay: "0",
-        fallbackFailure: "false",
+        defaultDelay: '100',
+        defaultFailure: 'true',
+        fallbackDelay: '0',
+        fallbackFailure: 'false',
       },
     },
     stage_03: {
-      exec: "define_stage",
-      startTime: "30s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '30s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "2000",
-        defaultFailure: "true",
-        fallbackDelay: "1000",
-        fallbackFailure: "true",
+        defaultDelay: '2000',
+        defaultFailure: 'true',
+        fallbackDelay: '1000',
+        fallbackFailure: 'true',
       },
     },
     stage_04: {
-      exec: "define_stage",
-      startTime: "40s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '40s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "20",
-        defaultFailure: "false",
-        fallbackDelay: "20",
-        fallbackFailure: "false",
+        defaultDelay: '20',
+        defaultFailure: 'false',
+        fallbackDelay: '20',
+        fallbackFailure: 'false',
       },
     },
     stage_05: {
-      exec: "define_stage",
-      startTime: "50s",
-      executor: "constant-vus",
+      exec: 'define_stage',
+      startTime: '50s',
+      executor: 'constant-vus',
       vus: 1,
-      duration: "1s",
+      duration: '1s',
       tags: {
-        defaultDelay: "0",
-        defaultFailure: "false",
-        fallbackDelay: "5000",
-        fallbackFailure: "false",
+        defaultDelay: '0',
+        defaultFailure: 'false',
+        fallbackDelay: '5000',
+        fallbackFailure: 'false',
       },
     },
   },
 };
 
-const transactionsSuccessCounter = new Counter("transactions_success");
-const transactionsFailureCounter = new Counter("transactions_failure");
-const totalTransactionsAmountCounter = new Counter("total_transactions_amount");
-const paymentsInconsistencyCounter = new Counter("payments_inconsistency");
+const transactionsSuccessCounter = new Counter('transactions_success');
+const transactionsFailureCounter = new Counter('transactions_failure');
+const totalTransactionsAmountCounter = new Counter('total_transactions_amount');
+const paymentsInconsistencyCounter = new Counter('payments_inconsistency');
 
-const defaultTotalAmountCounter = new Counter("default_total_amount");
-const defaultTotalRequestsCounter = new Counter("default_total_requests");
-const fallbackTotalAmountCounter = new Counter("fallback_total_amount");
-const fallbackTotalRequestsCounter = new Counter("fallback_total_requests");
+const defaultTotalAmountCounter = new Counter('default_total_amount');
+const defaultTotalRequestsCounter = new Counter('default_total_requests');
+const fallbackTotalAmountCounter = new Counter('fallback_total_amount');
+const fallbackTotalRequestsCounter = new Counter('fallback_total_requests');
 
-const defaultTotalFeeCounter = new Counter("default_total_fee");
-const fallbackTotalFeeCounter = new Counter("fallback_total_fee");
+const defaultTotalFeeCounter = new Counter('default_total_fee');
+const fallbackTotalFeeCounter = new Counter('fallback_total_fee');
 
 export async function setup() {
-  await setPPToken("default", token);
-  await setPPToken("fallback", token);
-  await resetPPDatabase("default");
-  await resetPPDatabase("fallback");
+  await setPPToken('default', token);
+  await setPPToken('fallback', token);
+  await resetPPDatabase('default');
+  await resetPPDatabase('fallback');
   await resetBackendDatabase();
 }
 
@@ -154,12 +154,12 @@ export async function teardown() {
   console.info(`summaries from ${from.toISOString()} to ${to.toISOString()}`);
 
   const defaultResponse = await getPPPaymentsSummary(
-    "default",
+    'default',
     from.toISOString(),
     to.toISOString(),
   );
   const fallbackResponse = await getPPPaymentsSummary(
-    "fallback",
+    'fallback',
     from.toISOString(),
     to.toISOString(),
   );
@@ -168,18 +168,16 @@ export async function teardown() {
     to.toISOString(),
   );
 
-  const totalTransactionsAmount = new Big(
-    backendPaymentsSummary.default.totalAmount,
-  ).plus(backendPaymentsSummary.fallback.totalAmount);
+  const totalTransactionsAmount = new Big(backendPaymentsSummary.default.totalAmount).plus(
+    backendPaymentsSummary.fallback.totalAmount,
+  );
 
   totalTransactionsAmountCounter.add(totalTransactionsAmount.toNumber());
 
   defaultTotalAmountCounter.add(backendPaymentsSummary.default.totalAmount);
   defaultTotalRequestsCounter.add(backendPaymentsSummary.default.totalRequests);
   fallbackTotalAmountCounter.add(backendPaymentsSummary.fallback.totalAmount);
-  fallbackTotalRequestsCounter.add(
-    backendPaymentsSummary.fallback.totalRequests,
-  );
+  fallbackTotalRequestsCounter.add(backendPaymentsSummary.fallback.totalRequests);
 
   const defaultTotalFee = new Big(defaultResponse.feePerTransaction).times(
     backendPaymentsSummary.default.totalAmount,
@@ -214,36 +212,24 @@ export async function payments() {
 export async function checkPaymentsConsistency() {
   const now = new Date();
 
-  const from = new Date(now - 1000 * 15).toISOString();
-  const to = new Date(now - 1500).toISOString();
+  const from = new Date(now - 1000 * 10).toISOString();
+  const to = new Date(now - 100).toISOString();
 
-  const defaultAdminPaymentsSummaryPromise = getPPPaymentsSummary(
-    "default",
-    from,
-    to,
-  );
-  const fallbackAdminPaymentsSummaryPromise = getPPPaymentsSummary(
-    "fallback",
-    from,
-    to,
-  );
+  const defaultAdminPaymentsSummaryPromise = getPPPaymentsSummary('default', from, to);
+  const fallbackAdminPaymentsSummaryPromise = getPPPaymentsSummary('fallback', from, to);
   const backendPaymentsSummaryPromise = getBackendPaymentsSummary(from, to);
 
-  const [
-    defaultAdminPaymentsSummary,
-    fallbackAdminPaymentsSummary,
-    backendPaymentsSummary,
-  ] = await Promise.all([
-    defaultAdminPaymentsSummaryPromise,
-    fallbackAdminPaymentsSummaryPromise,
-    backendPaymentsSummaryPromise,
-  ]);
+  const [defaultAdminPaymentsSummary, fallbackAdminPaymentsSummary, backendPaymentsSummary] =
+    await Promise.all([
+      defaultAdminPaymentsSummaryPromise,
+      fallbackAdminPaymentsSummaryPromise,
+      backendPaymentsSummaryPromise,
+    ]);
 
   const inconsistencies = Math.abs(
     backendPaymentsSummary.default.totalRequests -
       defaultAdminPaymentsSummary.totalRequests +
-      (backendPaymentsSummary.fallback.totalRequests -
-        fallbackAdminPaymentsSummary.totalRequests),
+      (backendPaymentsSummary.fallback.totalRequests - fallbackAdminPaymentsSummary.totalRequests),
   );
 
   paymentsInconsistencyCounter.add(inconsistencies);
@@ -256,43 +242,33 @@ export async function checkPaymentsConsistency() {
 }
 
 export async function define_stage() {
-  const defaultMs = parseInt(exec.vu.metrics.tags["defaultDelay"]);
-  const fallbackMs = parseInt(exec.vu.metrics.tags["fallbackDelay"]);
-  const defaultFailure = exec.vu.metrics.tags["defaultFailure"] === "true";
-  const fallbackFailure = exec.vu.metrics.tags["fallbackFailure"] === "true";
+  const defaultMs = parseInt(exec.vu.metrics.tags['defaultDelay']);
+  const fallbackMs = parseInt(exec.vu.metrics.tags['fallbackDelay']);
+  const defaultFailure = exec.vu.metrics.tags['defaultFailure'] === 'true';
+  const fallbackFailure = exec.vu.metrics.tags['fallbackFailure'] === 'true';
 
-  await setPPDelay("default", defaultMs);
-  await setPPDelay("fallback", fallbackMs);
+  await setPPDelay('default', defaultMs);
+  await setPPDelay('fallback', fallbackMs);
 
-  await setPPFailure("default", defaultFailure);
-  await setPPFailure("fallback", fallbackFailure);
+  await setPPFailure('default', defaultFailure);
+  await setPPFailure('fallback', fallbackFailure);
 
   sleep(1);
 }
 
 export function handleSummary(data) {
-  const total_transactions_requested =
-    data.metrics.transactions_success.values.count;
-  const actual_total_amount =
-    data.metrics.total_transactions_amount.values.count;
+  const total_transactions_requested = data.metrics.transactions_success.values.count;
+  const actual_total_amount = data.metrics.total_transactions_amount.values.count;
 
   const default_total_fee = data.metrics.default_total_fee.values.count;
   const fallback_total_fee = data.metrics.fallback_total_fee.values.count;
-  const total_fee = new Big(default_total_fee)
-    .plus(fallback_total_fee)
-    .toNumber();
+  const total_fee = new Big(default_total_fee).plus(fallback_total_fee).toNumber();
 
-  const p_99 = new Big(
-    data.metrics["http_req_duration{expected_response:true}"].values["p(99)"],
-  )
+  const p_99 = new Big(data.metrics['http_req_duration{expected_response:true}'].values['p(99)'])
     .round(2)
     .toNumber();
-  const p_99_bonus = Math.max(
-    new Big((11 - p_99) * 0.02).round(2).toNumber(),
-    0,
-  );
-  const contains_inconsistencies =
-    data.metrics.payments_inconsistency.values.count > 0;
+  const p_99_bonus = Math.max(new Big((11 - p_99) * 0.02).round(2).toNumber(), 0);
+  const contains_inconsistencies = data.metrics.payments_inconsistency.values.count > 0;
 
   const inconsistencies_fine = contains_inconsistencies ? 0.35 : 0;
 
@@ -303,16 +279,14 @@ export function handleSummary(data) {
       data.metrics.fallback_total_requests.values.count);
   const slush_fund = lag < 0;
 
-  const liquid_partial_amount = new Big(actual_total_amount)
-    .minus(total_fee)
-    .toNumber();
+  const liquid_partial_amount = new Big(actual_total_amount).minus(total_fee).toNumber();
 
   const liquid_amount = new Big(liquid_partial_amount)
     .plus(new Big(liquid_partial_amount).times(p_99_bonus))
     .minus(new Big(liquid_partial_amount).times(inconsistencies_fine))
     .toNumber();
 
-  const name = __ENV.PARTICIPANT ?? "anonymous";
+  const name = __ENV.PARTICIPANT ?? 'anonymous';
 
   const custom_data = {
     participante: name,
@@ -325,13 +299,11 @@ export function handleSummary(data) {
       valor: `${p_99}ms`,
       bonus: `${new Big(p_99_bonus).times(100)}%`,
       max_requests: MAX_REQUESTS,
-      descricao: "Fórmula para o bônus: max((11 - p99.valor) * 0.02, 0)",
+      descricao: 'Fórmula para o bônus: max((11 - p99.valor) * 0.02, 0)',
     },
     multa: {
       porcentagem: inconsistencies_fine,
-      total: new Big(liquid_partial_amount)
-        .times(inconsistencies_fine)
-        .toNumber(),
+      total: new Big(liquid_partial_amount).times(inconsistencies_fine).toNumber(),
       composicao: {
         num_inconsistencias: data.metrics.payments_inconsistency.values.count,
         descricao: "Se 'num_inconsistencias' > 0, há multa de 35%.",
@@ -346,14 +318,13 @@ export function handleSummary(data) {
       num_pagamentos_total:
         data.metrics.default_total_requests.values.count +
         data.metrics.fallback_total_requests.values.count,
-      num_pagamentos_solicitados:
-        data.metrics.transactions_success.values.count,
+      num_pagamentos_solicitados: data.metrics.transactions_success.values.count,
       lag:
         data.metrics.transactions_success.values.count -
         (data.metrics.default_total_requests.values.count +
           data.metrics.fallback_total_requests.values.count),
       descricao:
-        "Lag é a diferença entre a quantidade de solicitações de pagamentos e o que foi realmente computado pelo backend. Mostra a perda de pagamentos possivelmente por estarem enfileirados.",
+        'Lag é a diferença entre a quantidade de solicitações de pagamentos e o que foi realmente computado pelo backend. Mostra a perda de pagamentos possivelmente por estarem enfileirados.',
     },
     pagamentos_solicitados: {
       qtd_sucesso: data.metrics.transactions_success.values.count,
@@ -366,14 +337,14 @@ export function handleSummary(data) {
       num_pagamentos: data.metrics.default_total_requests.values.count,
       total_taxas: data.metrics.default_total_fee.values.count,
       descricao:
-        "Informações do backend sobre solicitações de pagamento para o Payment Processor Default.",
+        'Informações do backend sobre solicitações de pagamento para o Payment Processor Default.',
     },
     pagamentos_realizados_fallback: {
       total_bruto: data.metrics.fallback_total_amount.values.count,
       num_pagamentos: data.metrics.fallback_total_requests.values.count,
       total_taxas: data.metrics.fallback_total_fee.values.count,
       descricao:
-        "Informações do backend sobre solicitações de pagamento para o Payment Processor Fallback.",
+        'Informações do backend sobre solicitações de pagamento para o Payment Processor Fallback.',
     },
   };
 
