@@ -64,52 +64,61 @@ func (h *Handler) HandlePayments(ctx *fasthttp.RequestCtx) {
 
 	ctx.SetStatusCode(fasthttp.StatusAccepted)
 }
-
 func (h *Handler) HandlePaymentsSummary(ctx *fasthttp.RequestCtx) {
 	fromStr := string(ctx.QueryArgs().Peek("from"))
 	toStr := string(ctx.QueryArgs().Peek("to"))
 
-	from, to, err := parseTimeRange(fromStr, toStr)
-	if err != nil {
-		ctx.SetStatusCode(fasthttp.StatusBadRequest)
-		ctx.SetBodyString(err.Error())
+	// If specific time range is requested, use the original method
+	if fromStr != "" || toStr != "" {
+		from, to, err := parseTimeRange(fromStr, toStr)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusBadRequest)
+			ctx.SetBodyString(err.Error())
+			return
+		}
+
+		payments, err := h.paymentProcessor.Store.GetPaymentsByTime(ctx, from, to)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			ctx.SetBodyString("Failed to retrieve payments")
+			return
+		}
+
+		summary := PaymentsToSummary(payments, from, to)
+
+		response := models.PaymentSummaryResponse{
+			Default: models.SummaryResponse{
+				TotalRequests: summary.Default.TotalRequests,
+				TotalAmount:   float64(summary.Default.TotalAmount) / 100.0,
+			},
+			Fallback: models.SummaryResponse{
+				TotalRequests: summary.Fallback.TotalRequests,
+				TotalAmount:   float64(summary.Fallback.TotalAmount) / 100.0,
+			},
+		}
+
+		sendJSONResponse(ctx, response)
 		return
 	}
 
-	var payments []models.Payment
-	if !from.IsZero() && !to.IsZero() {
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, from, to)
-	} else {
-		payments, err = h.paymentProcessor.Store.GetPaymentsByTime(ctx, time.Unix(0, 0), time.Now().UTC())
-	}
+	// For total summary (no time range), use the optimized method
+	summary, err := h.paymentProcessor.Store.GetPaymentSummaryDirect(context.Background())
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		ctx.SetBodyString("Failed to retrieve payments")
+		ctx.SetBodyString("Failed to retrieve payment summary")
 		return
-	}
-
-	summary := PaymentsToSummary(payments, from, to)
-
-	response := models.PaymentSummaryResponse{
-		Default: models.SummaryResponse{
-			TotalRequests: summary.Default.TotalRequests,
-			TotalAmount:   float64(summary.Default.TotalAmount) / 100.0,
-		},
-		Fallback: models.SummaryResponse{
-			TotalRequests: summary.Fallback.TotalRequests,
-			TotalAmount:   float64(summary.Fallback.TotalAmount) / 100.0,
-		},
 	}
 
 	ctx.SetContentType("application/json")
 	ctx.SetStatusCode(fasthttp.StatusOK)
-	if data, err := json.Marshal(response); err == nil {
+	if data, err := json.Marshal(summary); err == nil {
 		ctx.SetBody(data)
 	} else {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetBodyString("Failed to encode summary")
 	}
 }
+
 func (h *Handler) HandlePurgePayments(ctx *fasthttp.RequestCtx) {
 	// Use context.Background() or create a context if needed
 	err := h.paymentProcessor.Store.PurgeAllData(context.Background())
@@ -131,5 +140,17 @@ func (h *Handler) HandlePurgePayments(ctx *fasthttp.RequestCtx) {
 		ctx.SetBody(data)
 	} else {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+	}
+}
+
+func sendJSONResponse(ctx *fasthttp.RequestCtx, response interface{}) {
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+
+	if data, err := json.Marshal(response); err == nil {
+		ctx.SetBody(data)
+	} else {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString("Failed to encode response")
 	}
 }

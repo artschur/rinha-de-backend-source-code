@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"rinha-backend-arthur/internal/models"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type Store struct {
 }
 
 func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error {
+	// Store the full payment data in sorted set for retrieval by time if needed
 	paymentData := map[string]any{
 		"correlationId":    payment.CorrelationId.String(),
 		"amount":           payment.Amount,
@@ -27,16 +29,61 @@ func (s *Store) StorePayment(ctx context.Context, payment models.Payment) error 
 	if err != nil {
 		return fmt.Errorf("failed to marshal payment data: %w", err)
 	}
-	// Use nanosecond precision for score
+
+	// Use a pipeline for better performance
+	pipe := s.RedisClient.Pipeline()
+
+	// Store the full payment in sorted set
 	score := float64(payment.RequestedAt.UnixNano())
-	err = s.RedisClient.ZAdd(ctx, "payments", redis.Z{
+	pipe.ZAdd(ctx, "payments", redis.Z{
 		Score:  score,
 		Member: paymentJSON,
-	}).Err()
+	})
+
+	// Update summary counters by service type
+	statsKey := fmt.Sprintf("payments:stats:%s", payment.Service)
+	pipe.HIncrBy(ctx, statsKey, "count", 1)
+	pipe.HIncrBy(ctx, statsKey, "amount", payment.Amount)
+
+	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to store payment: %w", err)
 	}
+
 	return nil
+}
+
+func (s *Store) GetPaymentSummaryDirect(ctx context.Context) (models.PaymentSummaryResponse, error) {
+	// Get stats for both processors in a single pipeline
+	pipe := s.RedisClient.Pipeline()
+	defaultStats := pipe.HGetAll(ctx, "payments:stats:default")
+	fallbackStats := pipe.HGetAll(ctx, "payments:stats:fallback")
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return models.PaymentSummaryResponse{}, fmt.Errorf("failed to retrieve payment stats: %w", err)
+	}
+
+	// Process default stats
+	defaultResult, _ := defaultStats.Result()
+	defaultCount, _ := strconv.ParseInt(defaultResult["count"], 10, 64)
+	defaultAmount, _ := strconv.ParseInt(defaultResult["amount"], 10, 64)
+
+	// Process fallback stats
+	fallbackResult, _ := fallbackStats.Result()
+	fallbackCount, _ := strconv.ParseInt(fallbackResult["count"], 10, 64)
+	fallbackAmount, _ := strconv.ParseInt(fallbackResult["amount"], 10, 64)
+
+	return models.PaymentSummaryResponse{
+		Default: models.SummaryResponse{
+			TotalRequests: defaultCount,
+			TotalAmount:   float64(defaultAmount) / 100.0,
+		},
+		Fallback: models.SummaryResponse{
+			TotalRequests: fallbackCount,
+			TotalAmount:   float64(fallbackAmount) / 100.0,
+		},
+	}, nil
 }
 
 func (s *Store) GetPaymentsByTime(ctx context.Context, from, to time.Time) ([]models.Payment, error) {
@@ -147,15 +194,21 @@ func (s *Store) parsePaymentFromData(data map[string]interface{}) (models.Paymen
 }
 
 func (s *Store) PurgeAllData(ctx context.Context) error {
-	err := s.RedisClient.Del(ctx, "payments").Err()
-	if err != nil {
-		return fmt.Errorf("failed to delete payments: %w", err)
+	pipe := s.RedisClient.Pipeline()
+
+	// Delete payments data
+	pipe.Del(ctx, "payments")
+
+	// Delete stats
+	pipe.Del(ctx, "payments:stats:default")
+	pipe.Del(ctx, "payments:stats:fallback")
+
+	// Delete processing keys if they exist
+	keys, _ := s.RedisClient.Keys(ctx, "payments:processing:*").Result()
+	if len(keys) > 0 {
+		pipe.Del(ctx, keys...)
 	}
 
-	keys, err := s.RedisClient.Keys(ctx, "payments:processing:*").Result()
-	if err == nil && len(keys) > 0 {
-		s.RedisClient.Del(ctx, keys...)
-	}
-
-	return nil
+	_, err := pipe.Exec(ctx)
+	return err
 }
